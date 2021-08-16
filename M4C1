@@ -1,0 +1,492 @@
+d1 <- read.csv("SAHAR.csv")
+d2 <- read.csv("BLINK.csv")
+d3 <- read.csv("CRESCENT_SET.csv")
+d4 <- read.csv("CRESCENT_POISE.csv")
+d5 <- read.csv("CRESCENT_MIX_N_MATCH.csv")
+d6 <- read.csv("crescent.csv")
+str(d1)
+
+
+# Converting data into numeric and deleting zone since I anyway find the cluster----
+
+d1$Store.Area < as.numeric(d1$Store.Area)
+d2$Store.Area < as.numeric(d2$Store.Area)
+d3$Store.Area < as.numeric(d3$Store.Area)
+d4$Store.Area < as.numeric(d4$Store.Area)
+d5$Store.Area < as.numeric(d5$Store.Area)
+d6$Store.Area < as.numeric(d6$Store.Area)
+
+d1$ï...Store.Id <- as.numeric(d1$ï...Store.Id)
+d2$ï...Store.Id <- as.numeric(d2$ï...Store.Id)
+d3$ï...Store.Id <- as.numeric(d3$ï...Store.Id)
+d4$ï...Store.Id <- as.numeric(d4$ï...Store.Id)
+d5$ï...Store.Id <- as.numeric(d5$ï...Store.Id)
+d6$ï...Store.Id <- as.numeric(d6$ï...Store.Id)
+
+
+d1$NS_SAHAR <- as.numeric(d1$NS_SAHAR)
+d1$CD_SAHAR <- as.numeric(d1$CD_SAHAR)
+d1$CG_SAHAR <- as.numeric(d1$CG_SAHAR)
+d1 <- d1 [ ,-3]
+
+
+d2$NS_BLINK <- as.numeric(d2$NS_BLINK)
+d2$CD_BLINK <- as.numeric(d2$CD_BLINK)
+d2$CG_BLINK <- as.numeric(d2$CG_BLINK)
+d2 <- d2 [ , -3]
+
+
+d3$NS_CRESCENT.SET <- as.numeric(d3$NS_CRESCENT.SET)
+d3$CD_CRESCENT.SET <- as.numeric(d3$CD_CRESCENT.SET)
+d3$CG_CRESCENT.SET <- as.numeric(d3$CG_CRESCENT.SET)
+d3 <- d3 [ , -3]
+
+
+d4$NS_CRESCENT.POISE <- as.numeric(d4$NS_CRESCENT.POISE)
+d4$CD_CRESCENT.POISE <- as.numeric(d4$CD_CRESCENT.POISE)
+d4$CG_CRESCENT.POISE <- as.numeric(d4$CG_CRESCENT.POISE)
+d4 <- d4[ , -3]
+
+
+d5$NS_CRESCENT.MIX.N..MATCH <- as.numeric(d5$NS_CRESCENT.MIX.N..MATCH) 
+d5$CD_CRESCENT.MIX.N..MATCH <- as.numeric(d5$CD_CRESCENT.MIX.N..MATCH)
+d5$CG_CRESCENT.MIX.N..MATCH <- as.numeric(d5$CG_CRESCENT.MIX.N..MATCH)
+d5 <- d5 [ , -3]
+
+
+d6$NS_CRESCENT <- as.numeric(d6$NS_CRESCENT)
+d6$CD_CRESCENT <- as.numeric(d6$CD_CRESCENT)
+d6$CG_CRESCENT <- as.numeric(d6$CG_CRESCENT)
+d6 <- d6 [ , -3]
+
+# K-MEANS CLUSTERING ----
+## CLUSTERING
+fitK1 <- kmeans(d1, 2)
+fitK1
+str(fitK1)
+fitK1$cluster
+plot(d1, col = fitK1$cluster)
+
+fitK2 <- kmeans(d2, 2)
+fitK2
+str(fitK2)
+fitK1$cluster
+plot(d2, col = fitK2$cluster)
+
+fitK3 <- kmeans(d3, 5)
+fitK3
+str(fitK3)
+fitK3$cluster
+plot(d3, col = fitK1$cluster)
+
+
+fitK4 <- kmeans(d4, 5)
+fitK4
+str(fitK4)
+fitK4$cluster
+plot(d4, col = fitK1$cluster)
+
+
+fitK5 <- kmeans(d5, 5)
+fitK5
+str(fitK5)
+fitK5$cluster
+plot(d5, col = fitK5$cluster)
+
+
+fitK6 <- kmeans(d6, 5)
+fitK6
+str(fitK6)
+fitK6$cluster
+plot(d6, col = fitK6$cluster)
+
+## CHOOSING K1
+k1 <- list()
+for(i in 1:10){
+  k1[[i]] <- kmeans(d1, i)
+}
+
+k1
+
+betweenss_totss <- list()
+for(i in 1:10){
+  betweenss_totss[[i]] <- k1[[i]]$betweenss/k1[[i]]$totss
+}
+
+plot(1:10, betweenss_totss, type = "b", 
+     ylab = "Between SS / Total SS", xlab = "Clusters (k1)")
+
+for(i in 1:6){
+  plot(d1, col = k1[[i]]$cluster)
+}
+
+
+## CHOOSING K2
+k2 <- list()
+for(i in 1:10){
+  k2[[i]] <- kmeans(d2, i)
+}
+
+k2
+
+betweenss_totss <- list()
+for(i in 1:10){
+  betweenss_totss[[i]] <- k2[[i]]$betweenss/k2[[i]]$totss
+}
+
+plot(1:10, betweenss_totss, type = "b", 
+     ylab = "Between SS / Total SS", xlab = "Clusters (k2)")
+
+for(i in 1:6){
+  plot(d2, col = k2[[i]]$cluster)
+}
+
+# for d2, k=2
+
+## CHOOSING K3
+k3 <- list()
+for(i in 1:10){
+  k3[[i]] <- kmeans(d3, i)
+}
+
+k3
+
+betweenss_totss <- list()
+for(i in 1:10){
+  betweenss_totss[[i]] <- k3[[i]]$betweenss/k3[[i]]$totss
+}
+
+plot(1:10, betweenss_totss, type = "b", 
+     ylab = "Between SS / Total SS", xlab = "Clusters (k3)")
+
+for(i in 1:6){
+  plot(d3, col = k3[[i]]$cluster)
+}
+
+#for d3, k=3
+
+
+## CHOOSING K1
+k4 <- list()
+for(i in 1:10){
+  k4[[i]] <- kmeans(d4, i)
+}
+
+k4
+
+betweenss_totss <- list()
+for(i in 1:10){
+  betweenss_totss[[i]] <- k4[[i]]$betweenss/k4[[i]]$totss
+}
+
+plot(1:10, betweenss_totss, type = "b", 
+     ylab = "Between SS / Total SS", xlab = "Clusters (k4)")
+
+for(i in 1:6){
+  plot(d4, col = k4[[i]]$cluster)
+}
+
+#for d4, k = 4
+
+## CHOOSING K5
+k5 <- list()
+for(i in 1:10){
+  k5[[i]] <- kmeans(d5, i)
+}
+
+k5
+
+betweenss_totss <- list()
+for(i in 1:10){
+  betweenss_totss[[i]] <- k5[[i]]$betweenss/k5[[i]]$totss
+}
+
+plot(1:10, betweenss_totss, type = "b", 
+     ylab = "Between SS / Total SS", xlab = "Clusters (k1)")
+
+for(i in 1:6){
+  plot(d5, col = k5[[i]]$cluster)
+}
+
+# for d5, k = 4
+
+## CHOOSING K6
+k6 <- list()
+for(i in 1:10){
+  k6[[i]] <- kmeans(d6, i)
+}
+
+k6
+
+betweenss_totss <- list()
+for(i in 1:10){
+  betweenss_totss[[i]] <- k6[[i]]$betweenss/k6[[i]]$totss
+}
+
+plot(1:10, betweenss_totss, type = "b", 
+     ylab = "Between SS / Total SS", xlab = "Clusters (k6)")
+
+for(i in 1:6){
+  plot(d6, col = k6[[i]]$cluster)
+}
+
+# for d6, k = 2
+
+#Alternate method for choosing k
+set.seed(123)
+wcss = vector()
+
+for (i in 1:10) wcss[i] = sum(kmeans(d1, i)$withinss)
+plot(1:10,
+     wcss,
+     type = 'b',
+     main = 'The Elbow Method',
+     xlab = 'No. of clusters',
+     ylab = 'WCSS')
+
+#k means clustering
+
+# HIERACHICAL CLUSTERING ----
+d1 <- dist(d1)
+fitH1 <- hclust(d1, "ward.D2")
+#?hclust
+plot(fitH1, hang = -1) 
+rect.hclust(fitH1, k = 2, border = "darkred") 
+clusters <- cutree(fitH1, k = 2) 
+clusters
+plot(d1, col = clusters)
+
+
+d2 <- dist(d2)
+fitH2 <- hclust(d2, "ward.D2")
+#?hclust
+plot(fitH2, hang = -1) 
+rect.hclust(fitH2, k = 2, border = "darkred") 
+clusters <- cutree(fitH2, k = 2) 
+clusters
+plot(d1, col = clusters)
+
+
+d3 <- dist(d3)
+fitH3 <- hclust(d3, "ward.D2")
+#?hclust
+plot(fitH3, hang = -1) 
+rect.hclust(fitH3, k = 3, border = "darkred") 
+clusters <- cutree(fitH3, k = 3) 
+clusters
+plot(d3, col = clusters)
+
+
+d4 <- dist(d4)
+fitH4 <- hclust(d4, "ward.D2")
+#?hclust
+plot(fitH4, hang = -1) 
+rect.hclust(fitH4, k = 2, border = "darkred") 
+clusters <- cutree(fitH4, k = 2) 
+clusters
+plot(d4, col = clusters)
+
+
+d5 <- dist(d5)
+fitH5 <- hclust(d5, "ward.D2")
+#?hclust
+plot(fitH5, hang = -1) 
+rect.hclust(fitH5, k = 2, border = "darkred") 
+clusters <- cutree(fitH5, k = 2) 
+clusters
+plot(d5, col = clusters)
+
+
+d6 <- dist(d6)
+fitH6 <- hclust(d6, "ward.D2")
+#?hclust
+plot(fitH6, hang = -1) 
+rect.hclust(fitH6, k = 2, border = "darkred") 
+clusters <- cutree(fitH6, k = 2) 
+clusters
+plot(d6, col = clusters)
+
+
+# MODEL-BASED CLUSTERING ----
+library(mclust)
+fitM1 <- Mclust(d1)
+fitM1
+plot(fitM1)
+
+
+fitM2 <- Mclust(d2)
+fitM2
+plot(fitM2)
+
+
+fitM3<- Mclust(d3)
+fitM3
+plot(fitM3)
+
+
+fitM4 <- Mclust(d4)
+fitM4
+plot(fitM4)
+
+
+fitM5 <- Mclust(d5)
+fitM5
+plot(fitM5)
+
+
+fitM6 <- Mclust(d6)
+fitM6
+plot(fitM6)
+
+# DENSITY-BASED CLUSTERING ----
+#install.packages("dbscan")
+#library(dbscan)
+#kNNdistplot(d1, k = 2)
+#abline(h = 1.4, col = "red", lty = 2)
+#fitD <- dbscan(data, eps = 7000, minPts = 5)
+#fitD
+#plot(data, col = fitD$cluster)
+
+
+# Density-based clustering (Method 2)
+
+# Installing packages
+library(fpc)
+library(dbscan)
+if(!require(devtools)) install.packages("devtools")
+devtools::install_github("kassambara/factoextra")
+library(factoextra)
+
+
+# Obtaining optimal eps value
+kNNdistplot(d1, k=5)
+abline(h = 40000, lty=2)
+
+# Density-based clustering with fpc & dbscan 
+set.seed(123)
+f <- fpc::dbscan(d1, eps=40000, MinPts = 5)
+f
+d <- dbscan::dbscan(d1, 40000, 5)
+d
+# Cluster visualization
+fviz_cluster(d, d1, geom = "point")
+fviz_cluster(f,d1,geom = "point")
+
+
+# Daisy Function --------------------------------------
+
+#Use zone also in the data and see if anything change
+
+d1 <- read.csv("SAHAR.csv")
+d2 <- read.csv("BLINK.csv")
+d3 <- read.csv("CRESCENT_SET.csv")
+d4 <- read.csv("CRESCENT_POISE.csv")
+d5 <- read.csv("CRESCENT_MIX_N_MATCH.csv")
+d6 <- read.csv("crescent.csv")
+str(d2)
+
+
+# Converting data into numeric and deleting zone since I anyway find the cluster----
+
+d1$Store.Area < as.numeric(d1$Store.Area)
+d2$Store.Area < as.numeric(d2$Store.Area)
+d3$Store.Area < as.numeric(d3$Store.Area)
+d4$Store.Area < as.numeric(d4$Store.Area)
+d5$Store.Area < as.numeric(d5$Store.Area)
+d6$Store.Area < as.numeric(d6$Store.Area)
+
+d1$ï...Store.Id <- as.numeric(d1$ï...Store.Id)
+d2$ï...Store.Id <- as.numeric(d2$ï...Store.Id)
+d3$ï...Store.Id <- as.numeric(d3$ï...Store.Id)
+d4$ï...Store.Id <- as.numeric(d4$ï...Store.Id)
+d5$ï...Store.Id <- as.numeric(d5$ï...Store.Id)
+d6$ï...Store.Id <- as.numeric(d6$ï...Store.Id)
+
+
+d1$NS_SAHAR <- as.numeric(d1$NS_SAHAR)
+d1$CD_SAHAR <- as.numeric(d1$CD_SAHAR)
+d1$CG_SAHAR <- as.numeric(d1$CG_SAHAR)
+
+
+d2$NS_BLINK <- as.numeric(d2$NS_BLINK)
+d2$CD_BLINK <- as.numeric(d2$CD_BLINK)
+d2$CG_BLINK <- as.numeric(d2$CG_BLINK)
+
+
+d3$NS_CRESCENT.SET <- as.numeric(d3$NS_CRESCENT.SET)
+d3$CD_CRESCENT.SET <- as.numeric(d3$CD_CRESCENT.SET)
+d3$CG_CRESCENT.SET <- as.numeric(d3$CG_CRESCENT.SET)
+
+
+d4$NS_CRESCENT.POISE <- as.numeric(d4$NS_CRESCENT.POISE)
+d4$CD_CRESCENT.POISE <- as.numeric(d4$CD_CRESCENT.POISE)
+d4$CG_CRESCENT.POISE <- as.numeric(d4$CG_CRESCENT.POISE)
+
+
+d5$NS_CRESCENT.MIX.N..MATCH <- as.numeric(d5$NS_CRESCENT.MIX.N..MATCH) d5$CD_CRESCENT.MIX.N..MATCH <- as.numeric(d5$CD_CRESCENT.MIX.N..MATCH)
+d5$CG_CRESCENT.MIX.N..MATCH <- as.numeric(d5$CG_CRESCENT.MIX.N..MATCH)
+
+
+d6$NS_CRESCENT <- as.numeric(d6$NS_CRESCENT)
+d6$CD_CRESCENT <- as.numeric(d6$CD_CRESCENT)
+d6$CG_CRESCENT <- as.numeric(d6$CG_CRESCENT)
+
+
+d1$Zone <- factor(d1$Zone, levels = c("NORTH","SOUTH","EAST","WEST"), labels = c(1,2,3,4))
+
+library(cluster)
+d1 <- daisy(d1, metric = c("euclidean","manhattan", "gower"))
+d1 <- as.matrix(d1)
+
+#Cluster
+
+cluster1 <- pam(d1, diss = T, k=4)
+table(cluster1$clustering)
+d11 <- cbind(d1,cluster1$clustering)
+colnames(d11)[ncol(d11)]<- "pam_cluster"
+aggregate(d11,list(d11), mean)
+
+
+avg_silhouette <- NA
+for (i in 2:10) {
+  cluster1 <- pam(d1, diss = T, k = i)
+  avg_silhouette[i] <- cluster1$silinfo$avg.width}
+
+avg_silhouette
+#value of silhouette is highest when number of cluster is 2
+
+plot(1:10, avg_silhouette, xlab = "Total number of cluster", ylab = "average silhouette", bty = "n")
+lines(1:10, avg_silhouette)
+
+
+
+# Daisy Function --------------------------------------
+
+str(data)
+
+d2$Zone <- factor(d2$Zone, levels = c("NORTH","SOUTH","EAST","WEST"), labels = c(1,2,3,4))
+
+library(cluster)
+d2 <- daisy(d2, metric = c("euclidean","manhattan", "gower"))
+d2 <- as.matrix(d2)
+
+#Cluster
+
+cluster1 <- pam(d2, diss = T, k=4)
+table(cluster1$clustering)
+d22 <- cbind(d2,cluster1$clustering)
+colnames(d22)[ncol(d22)]<- "pam_cluster"
+aggregate(d22,list(d22), mean)
+
+
+avg_silhouette <- NA
+for (i in 2:10) {
+  cluster1 <- pam(d2, diss = T, k = i)
+  avg_silhouette[i] <- cluster1$silinfo$avg.width}
+
+avg_silhouette
+#value of silhouette is highest when number of cluster is 2
+
+plot(1:10, avg_silhouette, xlab = "Total number of cluster", ylab = "average silhouette", bty = "n")
+lines(1:10, avg_silhouette)
+
