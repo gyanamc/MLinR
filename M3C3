@@ -1,0 +1,455 @@
+
+# Objective: Predict Conversion -----------------------
+
+
+# Step1 : Sourcing the data and read it  -------------
+
+
+# Step 2 : Deal with missing value (if any) us --------
+
+
+# Step 3 : Split data in trainnig and test  -----------
+
+
+# Step 4: Run logistic regression ---------------------
+
+
+# Step 5 : Run SVM, use different Kernal,degree,cost,gamma  ------------
+
+# Step 6 : Find which variable is not effectin --------
+
+
+# Step 7 : Run Random Forest --------------------------
+
+#--------------------------
+
+# Sourcing the data--------------
+
+dataset <- read.csv('03_ESignLoan_Classification.csv')
+head(dataset)
+str(dataset)
+
+# Deal with missing value using mean, KNN, median --------
+
+library(dplyr)
+data_nomiss = dataset %>%  
+  select(age,	pay_schedule,	home_owner,	income,
+         months_employed,	years_employed,
+         current_address_year,
+         personal_account_m,	personal_account_y,
+         has_debt,	amount_requested,
+         risk_score,	risk_score_2,
+         risk_score_3,	risk_score_4,
+         risk_score_5,
+         ext_quality_score,	ext_quality_score_2,
+         inquiries_last_month,	e_signed
+  ) %>%
+  na.omit()
+#No missing cell in the data_nomiss
+
+# Split data in training and test ---------------------
+
+str(data_nomiss)
+
+# Define all relevant categorical variables in my dataset
+
+data_nomiss$pay_schedule = factor(data_nomiss$pay_schedule,
+                                  levels = c('bi-weekly', 'monthly', 'semi-monthly', 'weekly'),
+                                  labels = c(1, 2, 3, 4))
+data_nomiss$home_owner = factor(data_nomiss$home_owner)
+data_nomiss$e_signed = factor(data_nomiss$e_signed)
+data_nomiss$has_debt = factor(dataset$has_debt)
+data_nomiss$employment_period = data_nomiss$months_employed + (data_nomiss$years_employed * 12)
+data_nomiss$personalaccount_period = data_nomiss$personal_account_m + (data_nomiss$personal_account_y*12)
+data_nomiss = select(data_nomiss, -c(months_employed, years_employed, personal_account_m, personal_account_y,))
+
+# Feature Scaling (optional)
+
+data_nomiss[, 1] = scale(data_nomiss[, 1])
+data_nomiss[, 4] = scale(data_nomiss[, 4])
+data_nomiss[, 5] = scale(data_nomiss[, 5])
+data_nomiss[, 7:15] = scale(data_nomiss[, 7:15])
+data_nomiss[, 17:18] = scale(data_nomiss[, 17:18])
+
+
+
+# Splitting the data into Training and Test -------------
+
+library(caTools)
+set.seed(123)
+
+split = sample.split(data_nomiss$e_signed, SplitRatio=0.8)
+
+training_set = subset(data_nomiss, split==TRUE)
+
+test_set = subset(data_nomiss, split==FALSE)
+
+
+# Logistic Regression ---------------------------------
+
+
+logReg = glm(formula = e_signed ~ .,
+                 family = binomial,
+                 data = training_set)
+
+summary(logReg)
+
+# Predict e_signed for the training set
+p1<-predict(logReg,training_set,type = 'response')
+head(p1)
+head(training_set)
+
+# Set a threshold of 0.5 and create predictions in 0 or 1
+
+#Mis-classification error - train data
+pred1 <-ifelse(p1>0.5,1,0)
+tab1 <- table(Predicted = pred1,Actual = training_set$e_signed)
+tab1
+sum(diag(tab1))/sum(tab1)*100
+
+# Mis-Classification error - test data
+p2<- predict(logReg,test_set,type = 'response')
+pred2 <- ifelse(p2>0.5,1,0)
+tab2<-table(Predicted=pred2,Actual=test_set$e_signed)
+tab2
+
+# Accuracy % and Confusion Matrix (at the threshold of 0.5)
+sum(diag(tab2))/sum(tab2)*100
+
+#Goodness of fit test
+with(classifier,pchisq(null.deviance-deviance, df.null-df.residual,lower.tail = F))
+
+# ROC and AUC
+
+#Logistic Regression Model
+library(nnet)
+mymodel <- multinom(e_signed~.,data=dataset)
+
+#without any model, what would be accuracy
+table(dataset$e_signed)
+# 53.82% accuracy withoug any data modeling
+
+#Model Performance Evaluation 
+library(ROCR)
+pred <- predict(mymodel,dataset,type='prob')
+head(pred) 
+head(dataset$e_signed)
+hist(pred)
+pred <- prediction (pred,dataset$e_signed)
+eval <- performance(pred,"acc")
+plot(eval)
+
+#Manually calculate the peak
+abline(h=0.582, v=0.52)
+
+#identify best accuracy
+max<- which.max(slot(eval,"y.values")[[1]])
+max
+y <- slot(eval,"y.values")[[1]][max]
+y
+#y maximum value = 0.5854925
+x <- slot(eval,"x.values")[[1]][max]
+x
+# x maximum value = 0.4971908
+print(c(Y=y,X=x))
+
+#ROC curve ( receiver operating characteristic )
+roc <- performance(pred,"tpr","fpr")
+plot(roc, colorize=T, main="ROC Curve")
+abline(a=0,b=1)
+
+#AUC ( Area Under the Curve)
+auc <- performance(pred,"auc")
+auc <- unlist(slot(auc,"y.values"))
+auc
+#AUC = 0.6142583
+auc <- round(auc,4)
+auc
+#AUC = 0.6143
+
+
+# run SVM with different kernels ----------------------
+
+
+# Method1: manually check every kernels  --------------
+
+library(e1071)
+classifier = svm(formula = e_signed ~ .,
+                 data = training_set,
+                 type = 'C-classification',
+                 kernel = 'polynomial')
+summary(classifier)
+
+classifier = svm(formula = e_signed ~ .,
+                 data = training_set,
+                 type = 'C-classification',
+                 kernel = 'radial')
+summary(classifier)
+
+
+# Method2: use MLR package for automatic calcu --------
+
+
+#install.packages('mlr')
+library(mlr)
+library(tidyverse)
+library(kernlab)
+# load dataset ----------------------------------------
+
+#install.packages('kernlab')
+data(data_nomiss,package = 'kernlab')
+head(data_nomiss)
+dim(data_nomiss)
+data_nomiss <- sample_n(data_nomiss,17908)%>% as_tibble() 
+data_nomiss
+glimpse(data_nomiss)
+table(data_nomiss$e_signed)
+
+# define task and learner -----------------------------
+
+defTask <- makeClassifTask(data = data_nomiss, target = "e_signed")
+
+svm <- makeLearner("classif.svm", predict.type = "prob")
+
+# define hyperparameter search space ------------------
+
+getParamSet("classif.svm")
+
+kernels <- c("polynomial","radial","sigmoid")
+svmPramSpace <- makeParamSet(
+  makeDiscreteParam("kernel",values = kernels),
+  makeIntegerParam("degree", lower = 1, upper = 3),
+  makeNumericParam("cost", lower = 5, upper = 20),
+  makeNumericParam("gamma", lower = 0, upper = 2)
+)
+
+# Define search procedure -----------------------------
+#makeTuneControlIrace()
+
+randSearch <- makeTuneControlRandom(maxit = 20)
+
+
+# Define nested cross-validation ----------------------
+
+inner <- makeResampleDesc("Holdout",split = 0.8)
+outer <- makeResampleDesc("CV",iters = 3)
+# learn this when you have time :"LOO", "RepCV", "subSample
+
+
+# Define wrapper for learner and tuning ---------------
+
+
+svmWrapper <- makeTuneWrapper(
+  learner = svm,
+  resampling = inner,
+  par.set = svmPramSpace,
+  control = randSearch
+)
+
+# Run Cross Validation --------------------------------
+
+
+cvWtihTuning <- resample(learner = svmWrapper,
+                         task = defTask,
+                         resampling = outer,
+                         models = TRUE)
+#mmce = mean mis classification error
+
+
+cvWtihTuning$measures.test
+
+
+# Train model using all data --------------------------
+
+
+tunedSvmPars <-tuneParams(learner = svm,
+                          task = defTask,
+                          resampling = inner,
+                          par.set = svmPramSpace,
+                          control = randSearch)
+tunedSvmPars
+
+tunedSvm <- setHyperPars(svm,par.vals = tunedSvmPars$x)
+tunedSvmModel <-train(tunedSvm,deftas)
+
+predict(tunedSvmModel, newdata = data_nomiss)
+
+
+# Random Forest ---------------------------------------
+
+# Data Partition
+
+set.seed(123)
+ind <- sample(2, nrow(data_nomiss), replace = TRUE, prob = c(0.8, 0.2))
+train <- data_nomiss[ind==1,]
+test <- data_nomiss[ind==2,]
+
+# Random Forest
+library(randomForest)
+set.seed(222)
+rf <- randomForest(e_signed~., data = train)
+rf <- randomForest(e_signed~., data=train,
+                   ntree = 300,
+                   mtry = 8,
+                   importance = TRUE,
+                   proximity = TRUE)
+print(rf)
+attributes(rf)
+
+# Prediction & Confusion Matrix - train data
+library(caret)
+p1 <- predict(rf, train)
+confusionMatrix(p1, train$e_signed)
+
+# # Prediction & Confusion Matrix - test data
+p2 <- predict(rf, test)
+confusionMatrix(p2, test$e_signed)
+
+# Error rate of Random Forest
+plot(rf)
+
+# Tune mtry
+t <- tuneRF(train[,-14], train[,14],
+            stepFactor = 0.5,
+            plot = TRUE,
+            ntreeTry = 300,
+            trace = TRUE,
+            improve = 0.05)
+
+# No. of nodes for the trees
+hist(treesize(rf),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+importance(rf)
+varUsed(rf)
+
+
+
+
+
+##################################
+
+# Neural Network stats here ---------------------------
+
+
+
+# Data
+getwd()
+data <- data_nomiss
+str(data)
+
+# Min-Max Normalization
+data$age <- (data$age - min(data$age))/(max(data$age) - min(data$age))
+data$income <- (data$income - min(data$income))/(max(data$income) - min(data$income))
+data$current_address_year <- (data$current_address_year - min(data$current_address_year))/(max(data$current_address_year)-min(data$current_address_year))
+data$amount_requested <- (data$amount_requested - min(data$amount_requested))/(max(data$amount_requested) - min(data$amount_requested))
+data$risk_score <- (data$risk_score - min(data$risk_score))/(max(data$risk_score) - min(data$risk_score))
+data$risk_score_2 <- (data$risk_score_2 - min(data$risk_score_2))/(max(data$risk_score_2) - min(data$risk_score_2))
+data$risk_score_3 <- (data$risk_score_3 - min(data$risk_score_3))/(max(data$risk_score_3) - min(data$risk_score_3))
+data$risk_score_4 <- (data$risk_score_4 - min(data$risk_score_4))/(max(data$risk_score_4) - min(data$risk_score_4))
+data$risk_score_5 <- (data$risk_score_5 - min(data$risk_score_5))/(max(data$risk_score_5) - min(data$risk_score_5))
+data$ext_quality_score <- (data$ext_quality_score - min(data$ext_quality_score))/(max(data$ext_quality_score) - min(data$ext_quality_score))
+data$ext_quality_score_2 <- (data$ext_quality_score_2 - min(data$ext_quality_score_2))/(max(data$ext_quality_score_2) - min(data$ext_quality_score_2))
+data$employment_period <- (data$employment_period - min(data$employment_period))/(max(data$employment_period) - min(data$employment_period))
+data$personalaccount_period <- (data$personalaccount_period - min(data$personalaccount_period))/(max(data$personalaccount_period) - min(data$personalaccount_period))
+data$inquiries_last_month <- (data$inquiries_last_month - min(data$inquiries_last_month))/(max(data$inquiries_last_month) - min(data$inquiries_last_month))
+
+data <- data [ , - 16]
+e_signed <- data [ , 16]
+data <- cbind(data,e_signed)
+View(data)
+str(data)
+data %<>% mutate_if(is.factor, as.numeric)
+
+# Data Partition
+set.seed(222)
+ind <- sample(2, nrow(data), replace = TRUE, prob = c(0.8, 0.2))
+training <- data[ind==1,]
+testing <- data[ind==2,]
+
+# Neural Networks
+library(neuralnet)
+set.seed(333)
+n <- neuralnet(e_signed~.,
+               data = training,
+               hidden = c(10,6),
+               err.fct = "sse",
+               linear.output = FALSE)
+plot(n)
+
+# Prediction
+output <- compute(n, training[,-18])
+head(output$net.result)
+head(training[1,])
+
+# Node Output Calculations with Sigmoid Activation Function
+#in4 <- 0.0455 + (0.82344*0.7586206897) + (1.35186*0.8103448276) + (-0.87435*0.6666666667)
+#out4 <- 1/(1+exp(-in4))
+#in5 <- -7.06125 +(8.5741*out4)
+#out5 <- 1/(1+exp(-in5))
+
+# Confusion Matrix & Misclassification Error - training data
+output <- compute(n, training[,-18])
+p1 <- output$net.result
+pred1 <- ifelse(p1>0.5, 1, 0)
+tab1 <- table(pred1, training$e_signed)
+tab1
+sum(diag(tab1))/sum(tab1)
+
+# Confusion Matrix & Misclassification Error - testing data
+output <- compute(n, testing[,-18])
+p2 <- output$net.result
+pred2 <- ifelse(p2>0.5, 1, 0)
+tab2 <- table(pred2, testing$e_signed)
+tab2
+1-sum(diag(tab2))/sum(tab2)
+
+
+# Fine Tuning  ----------------------------------------
+
+# Neural Networks
+library(neuralnet)
+set.seed(333)
+n <- neuralnet(e_signed~.,
+               data = training,
+               hidden = c(10,5),
+               err.fct = "sse",
+               linear.output = FALSE)
+plot(n)
+
+# Prediction
+output <- compute(n, training[,-18])
+head(output$net.result)
+head(training[1,])
+
+# Node Output Calculations with Sigmoid Activation Function
+#in4 <- 0.0455 + (0.82344*0.7586206897) + (1.35186*0.8103448276) + (-0.87435*0.6666666667)
+#out4 <- 1/(1+exp(-in4))
+#in5 <- -7.06125 +(8.5741*out4)
+#out5 <- 1/(1+exp(-in5))
+
+# Confusion Matrix & Misclassification Error - training data
+output <- compute(n, training[,-18])
+p1 <- output$net.result
+pred1 <- ifelse(p1>0.5, 1, 0)
+tab1 <- table(pred1, training$e_signed)
+tab1
+sum(diag(tab1))/sum(tab1)
+
+# Confusion Matrix & Misclassification Error - testing data
+output <- compute(n, testing[,-18])
+p2 <- output$net.result
+pred2 <- ifelse(p2>0.5, 1, 0)
+tab2 <- table(pred2, testing$e_signed)
+tab2
+sum(diag(tab2))/sum(tab2)
+
+
+# Fine-tune model
+
