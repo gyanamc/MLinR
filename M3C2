@@ -1,0 +1,699 @@
+
+# Objective: Predict MEDV -----------------------
+
+
+# Step1 : Sourcing the data and read it  -------------
+
+
+# Step 2 : Deal with missing value (if any) us --------
+
+
+# Step 3 : Split data in trainnig and test  -----------
+
+
+# Step 4: Run logistic regression ---------------------
+
+
+# Step 5 : Run SVM, use different Kernal,degree,cost,gamma  ------------
+
+# Step 6 : Find which variable is not effectin --------
+
+
+# Step 7 : Run Random Forest --------------------------
+
+# Step 8 : Run Neural Network -------------------------
+
+
+#--------------------------
+
+# Sourcing the data--------------
+
+dataset <- read.csv('02_Boston_Regression.csv')
+
+head(dataset)
+str(dataset)
+summary(dataset)
+
+library(dplyr)
+sum(is.na(dataset))
+
+# There are 54 NAs in the data_nomiss -----------------
+
+dataset$CHAS = ifelse(dataset$CHAS>0.5,1,0)
+
+# change the variables into categorical ---------------
+dataset$CHAS = factor(dataset$CHAS)
+dataset$RAD = as.factor(dataset$RAD)
+
+str(dataset)
+
+summary(dataset)
+
+
+
+#Missing Data - what %age
+
+p <- function(x){sum(is.na(x))/length(x)*100}
+apply(dataset,2,p)
+
+# in PTRATIO we have 10.67% missing values
+
+library(Metrics)
+library(mice)
+library(VIM)
+
+md.pattern(dataset)
+md.pairs(dataset)
+#rr obs Vs obs
+#rm obs Vs missing
+#mm missing Vs missing
+
+#Imputation
+
+impute <- mice(dataset [ , 2:15],m=3, seed = 123)
+#R has done 5 alternation and for each alter. it has 
+# 3 imputation values
+print(impute)
+#"pmm" = predictive mean matching
+
+#checking the imputed values
+impute$imp$PTRATIO
+dataset[ 368, ]
+dataset [ 480,]
+dataset [ 469,]
+summary(dataset$PTRATIO)
+
+# Complete dataset
+complete(impute,1)
+NewData<-complete(impute,1)
+# Feature Scaling (optional)
+str(NewData)
+NewData[, 1:3] = scale(NewData[, 1:3])
+NewData[, 5:8] = scale(NewData[, 5:8])
+NewData[, 10:14] = scale(NewData[, 10:14])
+
+str(NewData)
+summary(NewData)
+
+# Splitting the data into Training and Test -------------
+
+library(caTools)
+set.seed(123)
+
+split = sample.split(NewData$MEDV, SplitRatio=0.8)
+
+training_set = subset(NewData, split==TRUE)
+
+test_set = subset(NewData, split==FALSE)
+
+
+model <- lm(MEDV~.,data = training_set)
+model
+summary(model)
+
+# Model Diagnostic
+par(mfrow=c(2,2))
+plot(model)
+
+#Prediction
+pred<- predict(model,test_set)
+head(pred)
+summary(pred)
+
+rmsevalue = rmse(test_set$MEDV, pred)
+rmsevalue
+#0.6488611
+round(rmsevalue,4)
+#0.6489
+
+##########################
+# kNN imputation
+
+
+#install.packages('VIM')
+library(VIM)
+
+summary(dataset)
+
+
+dataSim <- kNN(dataset, variable = c("PTRATIO"),k=25)
+
+
+summary(dataset)
+
+dataSim <- kNN(dataset)
+
+
+summary(dataSim)
+head(dataSim)
+
+
+library(caTools)
+set.seed(123)
+
+split = sample.split(dataSim$MEDV_imp, SplitRatio=0.8)
+
+training_set = subset(dataSim, split==TRUE)
+
+test_set = subset(dataSim, split==FALSE)
+
+
+model <- lm(MEDV~.,data = training_set)
+model
+summary(model)
+
+# Model Diagnostic
+par(mfrow=c(2,2))
+plot(model)
+
+#Prediction
+pred<- predict(model,test_set)
+head(pred)
+summary(pred)
+
+rmsevalue = rmse(test_set$MEDV, pred)
+rmsevalue
+
+# RMSE = 4.1738
+
+####################
+
+# run SVM with different kernels -----
+
+
+# Method1: manually check every kernels  --------------
+
+library(e1071)
+classifier = svm(formula = MEDV ~ .,
+                 data = training_set,
+                 type = 'eps-regression',
+                 kernel = 'radial',
+                 degree = 2,
+                 gamma = 0.439,
+                 cost = 14.3)
+summary(classifier)
+
+library(caTools)
+set.seed(123)
+
+
+model <- svm(MEDV~.,data = training_set)
+model
+summary(model)
+
+#Prediction
+pred<- predict(model,test_set)
+head(pred)
+summary(pred)
+
+rmsevalue = rmse(test_set$MEDV, pred)
+rmsevalue
+
+# RMSE = 0.6654085
+
+
+classifier = svm(formula = MEDV ~ .,
+                 data = training_set,
+                 type = 'eps-regression',
+                 kernel = 'radial')
+summary(classifier)
+
+
+# Method2: use MLR package for automatic calcu --------
+
+
+#install.packages('mlr')
+library(mlr)
+library(tidyverse)
+library(kernlab)
+# load dataset ----------------------------------------
+
+#install.packages('kernlab')
+data(NewData = 'kernlab')
+head(NewData)
+dim(NewData)
+NewData <- sample_n(NewData,506)%>% as_tibble() 
+NewData
+glimpse(NewData)
+table(NewData$MEDV)
+
+# define task and learner -----------------------------
+
+defTask <- makeRegrTask(data = NewData, target = "MEDV")
+
+svm <- makeLearner("regr.svm", predict.type = "response")
+
+# define hyperparameter search space ------------------
+
+getParamSet("regr.svm")
+
+kernels <- c("polynomial","radial","sigmoid")
+svmPramSpace <- makeParamSet(
+  makeDiscreteParam("kernel",values = kernels),
+  makeIntegerParam("degree", lower = 1, upper = 3),
+  makeNumericParam("cost", lower = 5, upper = 20),
+  makeNumericParam("gamma", lower = 0, upper = 2)
+)
+
+# Define search procedure -----------------------------
+#makeTuneControlIrace()
+
+randSearch <- makeTuneControlRandom(maxit = 20)
+
+
+# Define nested cross-validation ----------------------
+
+inner <- makeResampleDesc("Holdout",split = 0.8)
+outer <- makeResampleDesc("CV",iters = 3)
+# learn this when you have time :"LOO", "RepCV", "subSample
+
+
+# Define wrapper for learner and tuning ---------------
+
+
+svmWrapper <- makeTuneWrapper(
+  learner = svm,
+  resampling = inner,
+  par.set = svmPramSpace,
+  control = randSearch
+)
+
+# Run Cross Validation --------------------------------
+
+
+cvWtihTuning <- resample(learner = svmWrapper,
+                         task = defTask,
+                         resampling = outer,
+                         models = TRUE)
+#mmce = mean mis classification error
+
+#Result: kernel=radial; degree=3; cost=11.3; gamma=0.271 : mse.test.mean=0.3296359
+#[Resample] iter 3:    0.3179557 
+#Aggregated Result: mse.test.mean=0.3018260
+
+
+cvWtihTuning$measures.test
+
+
+# Train model using all data --------------------------
+
+
+tunedSvmPars <-tuneParams(learner = svm,
+                          task = defTask,
+                          resampling = inner,
+                          par.set = svmPramSpace,
+                          control = randSearch)
+
+#Result: kernel=radial; degree=2; cost=14.3; gamma=0.439 : mse.test.mean=0.4207924
+
+
+
+tunedSvmPars
+
+tunedSvm <- setHyperPars(svm,par.vals = tunedSvmPars$x)
+tunedSvmModel <-train(tunedSvm,defTask)
+
+predict(tunedSvmModel, newdata = NewData)
+
+
+# Random Forest ---------------------------------------
+
+data <- NewData
+
+# Data partition
+set.seed(123)
+ind <- sample(2,nrow(data),replace=TRUE, prob=c(0.8,0.2))
+train <- data[ind==1,]
+test <- data[ind==2,]
+
+# Decision tree model
+library(party)
+tree <- ctree(MEDV~., 
+              data=training_set)
+
+print(tree)
+# Visualization of decision trees
+plot(tree)
+plot(tree, type = 'simple')
+
+head(train)
+
+#Predict
+predict(tree, training_set)
+
+# Misclassification error - train data
+p1 <- predict(tree, training_set)
+print(p1)
+p1 <- predict(tree,training_set,type = 'prob')
+tab1 <- table(p1, training_set$MEDV)
+tab1
+sum(diag(tab1))/sum(tab1)
+
+
+model <- ctree(MEDV~.,data = test_set)
+model
+summary(model)
+
+#Prediction
+pred<- predict(model,test_set)
+head(pred)
+summary(pred)
+
+rmsevalue = rmse(test_set$MEDV, pred)
+rmsevalue
+
+#0.5705297
+
+#################
+
+
+# Alternate method ------------------------------------
+
+
+
+# Data Partition
+
+set.seed(123)
+ind <- sample(2, nrow(NewData), replace = TRUE, prob = c(0.8, 0.2))
+train <- NewData[ind==1,]
+test <- NewData[ind==2,]
+
+# Random Forest
+library(randomForest)
+set.seed(123)
+rf <- randomForest(MEDV~., data = training_set)
+print(rf)
+rf <- randomForest(MEDV~., data=training_set,
+                   ntree = 300,
+                   mtry = 1,
+                   importance = TRUE,
+                   proximity = TRUE)
+#memory.limit(50000)
+print(rf)
+#Mean of squared residuals: 0.2045084
+#% Var explained: 90.54
+
+attributes(rf)
+
+# Prediction & Confusion Matrix - train data
+library(caret)
+p1 <- predict(rf, training_set)
+head(p1)
+head(training_set$MEDV)
+#confusionMatrix(p1, train$Profit)
+
+# # Prediction & Confusion Matrix - test data
+p2 <- predict(rf, test_set)
+#confusionMatrix(p2, test$Profit)
+head(p2)
+head(test_set$MEDV)
+# Error rate of Random Forest
+plot(rf)
+
+# Tune mtry
+t <- tuneRF(training_set[,-14], training_set[,14],
+            stepFactor = 1,
+            plot = TRUE,
+            ntreeTry = 100,
+            trace = TRUE,
+            improve = 0.05,)
+
+# No. of nodes for the trees
+hist(treesize(rf),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varImpPlot(rf)
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Variable Importance")
+importance(rf)
+varUsed(rf)
+
+# Partial Dependence Plot
+partialPlot(rf, train, LSTAT, "3")
+
+# Extract Single Tree
+getTree(rf, 2, labelVar = TRUE)
+
+# Multi-dimensional Scaling Plot of Proximity Matrix
+MDSplot(rf, training_set$MEDV)
+
+#Prediction
+pred<- predict(rf,test_set)
+head(pred)
+summary(pred)
+
+rmsevalue = rmse(test_set$MEDV, pred)
+rmsevalue
+
+# RMSE = 0.6673837
+
+
+# Tuning the Random Forest model by varying values of hyperparameters
+set.seed(123)
+NewData <- sample_n(data_nomiss,506)%>% as_tibble() 
+
+# define task and learner ----------------------
+defTaskrf <- makeRegrTask(data = NewData, target = "MEDV")
+rf <- makeLearner("regr.randomForest", predict.type = "response")
+
+# define hyperparameter search space ----------------------
+getParamSet("regr.randomForest")
+paramSpacerf <- makeParamSet( makeIntegerParam("mtry", lower = 1, upper = 15),
+                              makeIntegerParam("ntree", lower = 250, upper = 2500),
+                              makeIntegerParam("nodesize", lower = 4, upper = 80))
+
+# Define search procedure ----------------------
+randSearchrf <- makeTuneControlIrace(maxExperiments = 100)
+
+# Define nested cross-validation ----------------------
+innerrf <- makeResampleDesc("Holdout",split = 0.8)
+outerrf <- makeResampleDesc("CV",iters = 3)
+
+# Define wrapper for learner and tuning ---------------
+rfWrapper <- makeTuneWrapper(learner = rf, resampling = innerrf, 
+                             par.set = paramSpacerf, control = randSearchrf)
+
+# Run Cross Validation --------------------------------
+cvWtihTuningrf <- resample(learner = rfWrapper, task = defTaskrf, 
+                           resampling = outerrf, models = T)
+cvWtihTuningrf$measures.test
+
+# Train model using all data --------------------------
+tunedParsrf <-tuneParams(learner = rf,
+                         task = defTaskrf,
+                         resampling = innerrf,
+                         par.set = paramSpacerf,
+                         control = randSearchrf)
+tunedParsrf
+# mtry=6; ntree=755; nodesize=9 : mse.test.mean=0.1225079
+#Tune result:Op. pars: mtry=6; ntree=755; nodesize=9,mse.test.mean=0.1225079
+
+# Tuned model with hyperparameters and RMSE calculation
+# Step 5
+set.seed(123)
+regressor_rf_t = randomForest(MEDV ~., data = training_set, mtry = 6, 
+                              ntree = 755, nodesize = 9)
+print(regressor_rf_t)
+
+# Step 6
+# Using the regression model, predict MEDV for test set
+MEDV_predict_rf_t = predict(regressor_rf_t, newdata=test_set)
+
+# Step 7
+# Calculate Accuracy - RMSE
+rmsevalue_rf_t = rmse(test_set$MEDV, MEDV_predict_rf_t)
+rmsevalue_rf_t
+# rmse value =  0.3601518 with KNN 15
+
+#variable importance
+varImpPlot(regressor_rf_t)
+varImpPlot(regressor_rf_t,
+           sort = T,
+           main = "Variable Importance")
+importance(regressor_rf_t)
+varUsed(regressor_rf_t)
+
+# Partial Dependence Plot
+randomForest::partialPlot(regressor_rf_t, training_set, LSTAT, "3")
+
+# Extract Single Tree
+randomForest::getTree(regressor_rf_t, 2, labelVar = TRUE)
+
+
+# end of Random Forest --------------------------------
+
+
+
+# Neural Network --------------------------------------
+#install.packages('keras')
+# Libraries
+library(keras)
+library(mlbench) 
+library(dplyr)
+library(magrittr)
+library(neuralnet)
+
+# Data
+data <- NewData
+str(data)
+
+data %<>% mutate_if(is.factor, as.numeric)
+
+# Neural Network Visualization
+n <- neuralnet(MEDV ~ .,
+               data = data,
+               hidden = c(10,5),
+               linear.output = F,
+               lifesign = 'full',
+               rep=1)
+plot(n,
+     col.hidden = 'darkgreen',
+     col.hidden.synapse = 'darkgreen',
+     show.weights = F,
+     information = F,
+     fill = 'lightblue')
+
+# Matrix
+data <- as.matrix(data)
+dimnames(data) <- NULL
+
+# Partition
+set.seed(1234)
+ind <- sample(2, nrow(data), replace = T, prob = c(.8, .2))
+training <- data[ind==1,1:13]
+test <- data[ind==2, 1:13]
+trainingtarget <- data[ind==1, 14]
+testtarget <- data[ind==2, 14]
+
+# Normalize
+m <- colMeans(training)
+s <- apply(training, 2, sd)
+training <- scale(training, center = m, scale = s)
+test <- scale(test, center = m, scale = s)
+
+# Create Model
+model <- keras_model_sequential()
+model %>% 
+  layer_dense(units = 5, activation = 'relu', input_shape = c(13)) %>%
+  layer_dense(units = 1)
+
+# Compile
+model %>% compile(loss = 'mse',
+                  optimizer = 'rmsprop',
+                  metrics = 'mae')
+
+# Fit Model
+mymodel <- model %>%
+  fit(training,
+      trainingtarget,
+      epochs = 100,
+      batch_size = 32,
+      validation_split = 0.2)
+
+# Evaluate
+model %>% evaluate(test, testtarget)
+pred <- model %>% predict(test)
+mean((testtarget-pred)^2)
+plot(testtarget, pred)
+
+#Prediction
+pred<- predict(model,test)
+head(pred)
+summary(pred)
+
+rmsevalue = rmse(testtarget, pred)
+rmsevalue
+#0.7312715
+round(rmsevalue,4)
+#0.7313
+
+# Fine tuning -----------------------------------------
+
+
+model <- keras_model_sequential()
+model %>% 
+  layer_dense(units = 10, activation = 'relu', input_shape = c(13)) %>%
+  layer_dense(units = 5, activation = 'relu') %>% 
+  layer_dense(units = 1)
+summary(model)
+# Compile
+model %>% compile(loss = 'mse',
+                  optimizer = 'rmsprop',
+                  metrics = 'mae')
+
+# Fit Model
+mymodel <- model %>%
+  fit(training,
+      trainingtarget,
+      epochs = 100,
+      batch_size = 32,
+      validation_split = 0.2)
+#(this is a case of over fitting)
+# Evaluate
+model %>% evaluate(test, testtarget)
+pred <- model %>% predict(test)
+mean((testtarget-pred)^2)
+plot(testtarget, pred)
+#mae = 0.29
+
+#Prediction
+pred<- predict(model,test)
+head(pred)
+summary(pred)
+
+rmsevalue = rmse(testtarget, pred)
+rmsevalue
+#0.5666989
+round(rmsevalue,4)
+#0.5667
+
+
+# changing neurals and others -------------------------
+
+model <- keras_model_sequential()
+model %>% 
+  layer_dense(units = 100, activation = 'relu', input_shape = c(13)) %>%
+  layer_dropout(rate = 0.4) %>%
+  layer_dense(units = 50, activation = 'relu') %>%
+  layer_dropout(rate = 0.3)%>%
+  layer_dense(units = 20, activation = 'relu') %>%
+  layer_dropout(rate = 0.2)%>%
+  layer_dense(units = 1)
+summary(model)
+
+
+# Compile
+model %>% compile(loss = 'mse',
+                  optimizer = optimizer_rmsprop(lr=0.002),
+                  metrics = 'mae')
+
+# Fit Model
+mymodel <- model %>%
+  fit(training,
+      trainingtarget,
+      epochs = 100,
+      batch_size = 32,
+      validation_split = 0.2)
+#no pattern, hence can't be used
+
+# Evaluate
+model %>% evaluate(test, testtarget)
+pred <- model %>% predict(test)
+mean((testtarget-pred)^2)
+plot(testtarget, pred)
+
+#Prediction
+pred<- predict(model,test)
+head(pred)
+summary(pred)
+
+rmsevalue = rmse(testtarget, pred)
+rmsevalue
+#0.4483657
+round(rmsevalue,4)
+#0.4484
+
