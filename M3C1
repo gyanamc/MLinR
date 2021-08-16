@@ -1,0 +1,649 @@
+
+# Objective- Predict Profit ---------------------------
+
+# Sourcing the data -----------------------------------
+
+
+dataset = read.csv('01_CustomerProfit_Regression.csv')
+
+str(dataset)
+dataset$Online <- as.factor(dataset$Online)
+dataset$District <- as.factor(dataset$District)
+str(dataset)
+summary(dataset)
+
+sum(is.na(dataset))
+
+# 16550 in total missing value ------------------------
+
+
+#Missing Data
+p <- function(x){sum(is.na(x))/length(x)*100}
+apply(dataset,2,p)
+# in Age we have 26% and in Inc we have 26% mssing values
+
+
+# Deal with the missing value- Imputation -------------
+
+
+library(Metrics)
+library(mice)
+library(VIM)
+md.pattern(dataset)
+md.pairs(dataset)
+#rr obs Vs obs
+#rm obs Vs missing
+#mm missing Vs missing
+
+
+impute <- mice(dataset [ , 2:7],m=3, seed = 123)
+#R has done 5 alternation and for each alter. it has 
+# 3 imputation values
+print(impute)
+#"pmm" = predictive mean matching
+
+
+# checking the imputed values -------------------------
+
+
+impute$imp$Age
+dataset[ 4, ]
+dataset [ 835,]
+dataset [ 1052,]
+summary(dataset$Age)
+
+impute$imp$Inc
+dataset[ 4, ]
+dataset [ 1052,]
+summary(dataset$Age)
+
+# Complete dataset
+complete(impute,1)
+NewData<-complete(impute,1)
+View(NewData)
+summary(NewData)
+sum(is.na(NewData))
+
+# Scale all non-categorical variables -----------------
+
+NewData[, 1] = scale(NewData[, 1])
+NewData[, 3:5] = scale(NewData[, 3:5])
+str(NewData)
+
+# final dataset is "NewData", impute = 2nd option
+
+#Since outcome variable is cont. so will use linear
+
+head(NewData)
+pairs(NewData[1:6])
+summary(NewData)
+set.seed(123)
+ind <-sample(2,nrow(NewData),replace = T,prob = c(0.8,0.2))
+training <- NewData[ind==1, ]
+testing <- NewData[ind==2, ]
+cbind(summary(training$Age),summary(testing$Age))
+
+#Multiple Linear Regression Model
+model <- lm(Profit~.,data = training)
+model
+summary(model)
+
+# Model Diagnostic
+#par(mfrow=c(2,2))
+#plot(model)
+
+#Prediction
+pred<- predict(model,testing)
+head(pred)
+head(testing)
+
+rmsevalue = rmse(testing$Profit, pred)
+rmsevalue
+#0.9425906
+
+####################
+# using impute 2
+# Complete dataset
+complete(impute,2)
+NewData<-complete(impute,2)
+#stripplot(impute,pch=20,cex=1.2)
+#xyplot(impute,Age~Inc| .imp, pch= 20, cex=1.4)
+
+# final dataset is "NewData", impute i took was 2
+
+#Since outcome variable is cont. so will use linear
+head(NewData)
+#pairs(NewData[1:6])
+summary(NewData)
+set.seed(123)
+ind <-sample(2,nrow(NewData),replace = T,prob = c(0.8,0.2))
+traning <- NewData[ind==1, ]
+testing <- NewData[ind==2, ]
+cbind(summary(traning$Age),summary(testing$Age))
+
+#Multiple Linear Regression Model
+model <- lm(Profit~.,data = traning)
+model
+summary(model)
+
+# Model Diagnostic
+par(mfrow=c(2,2))
+plot(model)
+
+#Prediction
+pred<- predict(model,testing)
+head(pred)
+head(testing)
+
+rmsevalue = rmse(testing$Profit, pred)
+rmsevalue
+#257.17
+
+
+# RMSE value is less in 1st imputation  ---------------
+
+
+# kNN imputation
+
+dataset = read.csv("01_CustomerProfit_Regression.csv")
+head(dataset)
+summary(dataset)
+
+#install.packages('VIM')
+library(VIM)
+
+
+
+
+dataSim <- kNN(dataset, variable = c("Age","Inc"),k=300)
+
+
+summary(dataset)
+
+dataSim <- kNN(dataset)
+
+
+summary(dataSim)
+head(dataSim)
+
+dataSim <-subset(dataSim, select = Profit:Tenure)
+head(dataSim)
+
+
+NewData[, 1] = scale(NewData[, 1])
+NewData[, 3:5] = scale(NewData[, 3:5])
+str(NewData)
+
+# final dataset is "NewData", impute = 2nd option
+
+#Since outcome variable is cont. so will use linear
+
+head(NewData)
+pairs(NewData[1:6])
+summary(NewData)
+set.seed(123)
+ind <-sample(2,nrow(NewData),replace = T,prob = c(0.8,0.2))
+training <- NewData[ind==1, ]
+testing <- NewData[ind==2, ]
+cbind(summary(training$Age),summary(testing$Age))
+
+#Multiple Linear Regression Model
+model <- lm(Profit~.,data = training)
+model
+summary(model)
+
+# Model Diagnostic
+par(mfrow=c(2,2))
+plot(model)
+
+#Prediction
+pred<- predict(model,testing)
+head(pred)
+head(testing)
+
+rmsevalue = rmse(testing$Profit, pred)
+rmsevalue
+#0.9423803
+
+# SVM -------------------------------------------------
+
+
+# Method1: manually check every kernels  --------------
+
+library(e1071)
+classifier = svm(formula = Profit ~ .,
+                 data = training,
+                 
+                 kernel = 'linear')
+summary(classifier)
+
+
+
+# Method2: use MLR package for automatic calcu --------
+
+
+#install.packages('mlr')
+library(mlr)
+library(tidyverse)
+library(kernlab)
+# load dataset ----------------------------------------
+
+#install.packages('kernlab')
+data(NewData,package = 'kernlab')
+head(NewData)
+dim(NewData)
+NewData <- sample_n(NewData,31634)%>% as_tibble() 
+NewData
+glimpse(NewData)
+table(NewData$Profit)
+
+# define task and learner -----------------------------
+
+defTask <- makeRegrTask(data = NewData,
+                           target = "Profit")
+
+svm <- makeLearner("regr.svm", predict.type = "response")
+
+# define hyperparameter search space ------------------
+
+getParamSet("regr.svm")
+
+kernels <- c("polynomial","radial","sigmoid")
+svmPramSpace <- makeParamSet(
+  makeDiscreteParam("kernel",values = kernels),
+  makeIntegerParam("degree", lower = 1, upper = 3),
+  makeNumericParam("cost", lower = 5, upper = 20),
+  makeNumericParam("gamma", lower = 0, upper = 2)
+)
+
+# Define search procedure -----------------------------
+#makeTuneControlIrace()
+
+randSearch <- makeTuneControlRandom(maxit = 20)
+
+
+# Define nested cross-validation ----------------------
+
+inner <- makeResampleDesc("Holdout",split = 0.8)
+outer <- makeResampleDesc("CV",iters = 3)
+# learn this when you have time :"LOO", "RepCV", "subSample
+
+
+# Define wrapper for learner and tuning ---------------
+
+
+svmWrapper <- makeTuneWrapper(
+  learner = svm,
+  resampling = inner,
+  par.set = svmPramSpace,
+  control = randSearch
+)
+
+# Run Cross Validation --------------------------------
+
+
+cvWtihTuning <- resample(learner = svmWrapper,
+                         task = defTask,
+                         resampling = outer,
+                         models = TRUE)
+#Result: kernel=polynomial; degree=3; cost=10.4; 
+#gamma=1.02 : mse.test.mean=71571.1167001
+#RMSE = 267.5
+
+#mmce = mean mis classification error
+
+cvWtihTuning$measures.test
+
+
+# Train model using all data --------------------------
+
+
+tunedSvmPars <-tuneParams(learner = svm,
+                          task = defTask,
+                          resampling = inner,
+                          par.set = svmPramSpace,
+                          control = randSearch)
+tunedSvmPars
+
+#Tune result:
+#Op. pars: kernel=polynomial; degree=3; cost=7.03; 
+#gamma=0.694
+#mse.test.mean=78772.2270712
+#rmse(root.mean.square.error)= 275.85
+
+tunedSvm <- setHyperPars(svm,par.vals = tunedSvmPars$x)
+tunedSvmModel <-train(tunedSvm,defTask)
+
+predict(tunedSvmModel, newdata = NewData)
+
+#Prediction: 31634 observations
+#predict.type: response
+#threshold: 
+#time: 12.00
+#truth   response
+#1  -110  -1.464316
+#2    41  94.121358
+#3   105 111.855710
+#4    -2  -3.308621
+#5   -60  80.575768
+#6   155   1.476786
+#... (#rows: 31634, #cols: 2)
+
+# Random Forest ---------------------------------------
+
+data <- NewData
+
+# Data partition
+set.seed(123)
+ind <- sample(2,nrow(data),replace=TRUE, prob=c(0.8,0.2))
+train <- data[ind==1,]
+test <- data[ind==2,]
+
+# Decision tree model
+library(party)
+tree <- ctree(Profit~., 
+              data=train)
+
+print(tree)
+# Visualization of decision trees
+plot(tree)
+plot(tree, type = 'simple')
+
+head(train)
+
+#Predict
+predict(tree, train)
+
+# Misclassification error - train data
+p1 <- predict(tree, train)
+print(p1)
+p1 <- predict(tree,train,type = 'prob')
+tab1 <- table(p1, train$Profit)
+tab1
+sum(diag(tab1))/sum(tab1)
+
+# Misclassification error - test data
+p2 <- predict(tree, test)
+tab2 <- table(p2,test$Profit)
+tab2
+sum(diag(tab2))/sum(tab2)
+
+#Prediction
+pred<- predict(model,test)
+head(pred)
+head(testing)
+
+rmsevalue = rmse(test$Profit, pred)
+rmsevalue
+
+
+# RMSE = 0.9425906 -------------------------------------
+
+
+
+#################
+
+
+# Alternate method ------------------------------------
+
+
+
+# Data Partition
+
+set.seed(123)
+ind <- sample(2, nrow(NewData), replace = TRUE, prob = c(0.8, 0.2))
+train <- NewData[ind==1,]
+test <- NewData[ind==2,]
+
+# Random Forest
+library(randomForest)
+set.seed(123)
+rf <- randomForest(Profit~., data = train)
+rf <- randomForest(Profit~., data=train,
+                   ntree = 300,
+                   mtry = 1,
+                   importance = TRUE,
+                   proximity = TRUE)
+#memory.limit(50000)
+print(rf)
+#Mean of squared residuals: 0.9311547
+#% Var explained: 6.16
+
+attributes(rf)
+
+# Prediction & Confusion Matrix - train data
+library(caret)
+p1 <- predict(rf, train)
+head(p1)
+head(train$Profit)
+#confusionMatrix(p1, train$Profit)
+
+# # Prediction & Confusion Matrix - test data
+p2 <- predict(rf, test)
+#confusionMatrix(p2, test$Profit)
+head(p2)
+head(test$Profit)
+# Error rate of Random Forest
+plot(rf)
+
+# Tune mtry
+t <- tuneRF(test[,-1], test[,1],
+            stepFactor = 1,
+            plot = TRUE,
+            ntreeTry = 100,
+            trace = TRUE,
+            improve = 0.05,)
+
+# No. of nodes for the trees
+hist(treesize(rf),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varImpPlot(rf)
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Variable Importance")
+importance(rf)
+varUsed(rf)
+
+# Partial Dependence Plot
+partialPlot(rf, test, Tenure, "3")
+
+# Extract Single Tree
+getTree(rf, 2, labelVar = TRUE)
+
+#Prediction
+pred<- predict(model,test)
+head(pred)
+head(testing)
+
+rmsevalue = rmse(test$Profit, pred)
+rmsevalue
+
+
+# RMSE = 0.9425906 -------------------------------------
+
+
+
+# end of Random Forest --------------------------------
+
+
+# Gradient Boosting -----------------------------------
+
+
+library(xgboost)
+library(magrittr)
+library(dplyr)
+library(Matrix)
+
+
+# Partition Data --------------------------------------
+
+set.seed(123)
+
+ind <- sample(2,nrow(NewData), replace = T,prob = c(0.8,0.2))
+train <- NewData[ind == 1,]
+test <- NewData[ind == 2, ]
+
+# create Matrix - One-Hot Encoding for the fac --------
+
+trainm <- sparse.model.matrix(Profit~. -1, data = train)
+head(trainm)
+train_label <- train[ , "Profit"]
+train_matrix <- xgb.DMatrix(data = as.matrix(trainm),
+                            label = train_label)
+testm <- sparse.model.matrix(Profit~. -1, data = test)
+test_label <- test[ , "Profit"]
+test_matrix <- xgb.DMatrix(data = as.matrix(testm),
+                            label = test_label)
+
+
+
+
+# Neural Network --------------------------------------
+
+# Libraries
+library(keras)
+library(mlbench) 
+library(dplyr)
+library(magrittr)
+library(neuralnet)
+
+# Data
+data <- NewData
+str(data)
+
+data %<>% mutate_if(is.factor, as.numeric)
+str(data)
+# Neural Network Visualization
+n <- neuralnet(Profit ~ .,
+               data = data,
+               hidden = c(6,3),
+               linear.output = F,
+               lifesign = 'full',
+               rep=1)
+
+
+#stepmax	min thresh: 0.123819170426948
+#Warning message:
+ # Algorithm did not converge in 1 of 1 repetition(s) within the stepmax. 
+
+plot(n,
+     col.hidden = 'darkgreen',
+     col.hidden.synapse = 'darkgreen',
+     show.weights = F,
+     information = F,
+     fill = 'lightblue')
+
+# Matrix
+data <- as.matrix(data)
+dimnames(data) <- NULL
+
+# Partition
+set.seed(123)
+ind <- sample(2, nrow(data), replace = T, prob = c(.8, .2))
+training <- data[ind==1,2:5]
+test <- data[ind==2, 2:5]
+trainingtarget <- data[ind==1, 1]
+testtarget <- data[ind==2, 1]
+
+# Normalize
+m <- colMeans(training)
+s <- apply(training, 2, sd)
+training <- scale(training, center = m, scale = s)
+test <- scale(test, center = m, scale = s)
+
+# Create Model
+model <- keras_model_sequential()
+model %>% 
+  layer_dense(units = 5, activation = 'relu', input_shape = c(13)) %>%
+  layer_dense(units = 1)
+
+# Compile
+model %>% compile(loss = 'mse',
+                  optimizer = 'rmsprop',
+                  metrics = 'mae')
+
+# Fit Model
+mymodel <- model %>%
+  fit(training,
+      trainingtarget,
+      epochs = 100,
+      batch_size = 32,
+      validation_split = 0.2)
+
+# Evaluate
+model %>% evaluate(test, testtarget)
+pred <- model %>% predict(test)
+mean((testtarget-pred)^2)
+plot(testtarget, pred)
+
+
+
+# Fine tuning -----------------------------------------
+
+
+model <- keras_model_sequential()
+model %>% 
+  layer_dense(units = 10, activation = 'relu', input_shape = c(13)) %>%
+  layer_dense(units = 5, activation = 'relu') %>% 
+  layer_dense(units = 1)
+summary(model)
+# Compile
+model %>% compile(loss = 'mse',
+                  optimizer = 'rmsprop',
+                  metrics = 'mae')
+
+# Fit Model
+mymodel <- model %>%
+  fit(training,
+      trainingtarget,
+      epochs = 100,
+      batch_size = 32,
+      validation_split = 0.2)
+
+# Evaluate
+model %>% evaluate(test, testtarget)
+pred <- model %>% predict(test)
+mean((testtarget-pred)^2)
+plot(testtarget, pred)
+
+
+# changing neurals and others -------------------------
+
+model <- keras_model_sequential()
+model %>% 
+  layer_dense(units = 100, activation = 'relu', input_shape = c(13)) %>%
+  layer_dropout(rate = 0.4) %>%
+  layer_dense(units = 50, activation = 'relu') %>%
+  layer_dropout(rate = 0.3)%>%
+  layer_dense(units = 20, activation = 'relu') %>%
+  layer_dropout(rate = 0.2)%>%
+  layer_dense(units = 1)
+summary(model)
+
+
+# Compile
+model %>% compile(loss = 'mse',
+                  optimizer = optimizer_rmsprop(lr=0.002),
+                  metrics = 'mae')
+
+# Fit Model
+mymodel <- model %>%
+  fit(training,
+      trainingtarget,
+      epochs = 100,
+      batch_size = 32,
+      validation_split = 0.2)
+
+# Evaluate
+model %>% evaluate(test, testtarget)
+pred <- model %>% predict(test)
+mean((testtarget-pred)^2)
+plot(testtarget, pred)
+
+#RMSE = 18.505
+
+##################
