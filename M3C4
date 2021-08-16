@@ -1,0 +1,779 @@
+mydata = read.csv("04_Lead_Scoring_Classification.csv")
+head(mydata)
+
+#Prospect ID and Lead number has no effect on the output ( obviously), hence removing it.
+
+mydata <- mydata [ , -1]
+
+# Checking if any cell has 0 value --------------------
+
+library(random)
+all(apply(mydata,2,function(x)x==0),2,any())
+
+
+# Checking unique values ------------------------------
+
+
+unique(mydata,incomparables = F)
+
+
+# Data Cleaning ---------------------------------------
+
+#Replace the 'Select' value in the categorical values to ''.
+#Check Percentage of Missing values for all columns
+#Drop columns with a high percentage of missing values
+#Drop categorical columns that are highly skewed
+#Impute columns with less percentage of missing values
+#We can also drop the columns that were completed by the Sales team after progressing with the leads.
+#-----------------------
+
+
+# 5 columns have single output data, hence will have no effect on the result
+
+# magazine,
+#receive more update about the course
+#update me on supply chain content
+#get update on DM content
+#I agee to pay
+
+mydata <- mydata [ , -17]
+mydata <- mydata [ , -22]
+mydata <- mydata [ , -24]
+mydata <- mydata [ , -24]
+mydata <- mydata [ , -30]
+
+head(mydata)
+
+# there are many "select" in cells which is not a data point and should be Na 
+
+mydata$Country[mydata$Country=='unknown'] <-''
+mydata$Specialization[mydata$Specialization=='Select'] <- ''
+mydata$How_did_you_hear_about_X_Education[mydata$How_did_you_hear_about_X_Education=='Select']<- ''
+mydata$Lead_Profile[mydata$Lead_Profile=='Select'] <-''
+mydata$City[mydata$City=='Select'] <-''
+sum(is.na(mydata))
+
+
+# Checking for imbalance  -----------------------------
+
+plot(mydata$Converted)
+
+
+# good numbers of 0 and 1, hence balanced data --------
+
+library(Metrics)
+library(mice)
+library(VIM)
+md.pattern(mydata)
+md.pairs(mydata)
+
+# Asymmetrique Activity score has 4218 missing values so deleting it as of now ( will see later)
+
+mydata <- mydata [ , -28]
+md.pattern(mydata)
+md.pairs(mydata)
+#total visit and time spend on website has same number of missing value i.e, 137
+
+# creating a new column " how did find us" in which combining all the sources and see if the data has any significance.
+
+How_did_find_us <- cbind(mydata$Search,mydata$Newspaper_Article,mydata$X_Education_Forums,mydata$Newspaper,mydata$Digital_Advertisement,mydata$Through_Recommendations)
+
+
+How_did_find_us[How_did_find_us=='No'] <-''
+
+mydata$How_did_find_us = cbind(How_did_find_us)
+md.pattern(mydata)
+md.pairs(mydata)
+sum(is.na(mydata))
+
+# almost all the cells are empty in "how did they find us" which consist search, newspaper,X_education forum,Newspaper,digital ads and through recommendation. Hence deleting all these coulmns as well.
+mydata = mydata[ , -(16:21)]
+mydata = mydata[ , -(26:27)]
+mydata = mydata[ , -25]
+sum(is.na(mydata))
+# Do not call has only 2 'yes'  in the entire dataset hence I will remove it.
+
+mydata = mydata [ , -5]
+
+#checking other missing columns - country, specialization
+
+
+# Since I need to run logistic regression, so I need to convert every classification columns into binary and all continuous columns in scale.
+
+#str(mydata)
+
+library(tidyverse)
+#library(tidyquant)
+library(dplyr)
+
+# need to convert into factor to plot a chart.
+
+
+#Specialization = Replacing blanks with "Others",since people might not belongs to any given group
+mydata$Specialization = factor(mydata$Specialization,c('Banking, Investment And Insurance','Business Administration','E-Business','E-COMMERCE','Finance Management','Healthcare Management','Hospitality Management','Human Resource Management','International Business','IT Projects Management','Marketing Management','Media and Advertising','Media and Advertising','Retail Management','Rural and Agribusiness','Services Excellence','Supply Chain Management','Travel and Tourism','NA',''),labels = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,19))
+plot(mydata$Specialization)
+mydata$How_did_you_hear_about_X_Education[mydata$How_did_you_hear_about_X_Education == 'Select'] <- 'NA'
+sum(is.na(mydata$Specialization))
+mydata$How_did_you_hear_about_X_Education = factor(mydata$How_did_you_hear_about_X_Education, c('Advertisements','Email','Multiple Sources','Online Search','Other','SMS','Social Media','Student of SomeSchool','Word Of Mouth'),labels = c(1,2,3,4,5,6,7,8,9))
+
+plot(mydata$How_did_you_hear_about_X_Education)
+
+mydata$What_is_your_current_occupation = factor(mydata$What_is_your_current_occupation, c('Other','Student','Unemployed','Working Professional',''), labels = c(1,2,3,4,5))
+
+
+#Replacing mssing values with "unemployed' since they are maximum in number
+plot(mydata$What_is_your_current_occupation)
+
+mydata$What_matters_most_to_you_in_choosing_a_course = factor(mydata$What_matters_most_to_you_in_choosing_a_course, c('Better Career Prospects','Flexibility & Convenience','Other',''),labels = c(1,2,3,4))
+
+plot(mydata$What_matters_most_to_you_in_choosing_a_course)
+
+mydata = mydata [ , -12]
+
+#almost everyone looking for better career prospects, hence it will not contribute anything for prediction, so deleting the column.
+
+
+# Since most of the leads are from 'Mumbai' hence replacing select with Mumbai.
+
+mydata$City[mydata$City == 'Select'] <- ''
+
+mydata$City = factor(mydata$City, c('Mumbai','Other Cities','Other Cities of Maharashtra','Other Metro Cities','Thane & Outskirts','Tier II Cities',''), labels = c(1,2,3,4,5,6,'Mumbai'))
+
+mydata$City = factor(mydata$City,c(1,2,3,4,5,6,'Mumbai'), labels = c(1,2,3,4,5,6,1))
+plot(mydata$City)
+
+#Replace missing values with Mumbai since more than 75% data has Mumbai as input.
+
+mydata$A_free_copy_of_Mastering_The_Interview = factor(mydata$A_free_copy_of_Mastering_The_Interview, c('Yes','No'), labels = c(1,2))
+
+plot(mydata$A_free_copy_of_Mastering_The_Interview)
+
+mydata$Lead_Origin = factor(mydata$Lead_Origin,
+                            levels = c( 'API','Landing Page Submission', 'Lead Add Form','Lead Import', 'Quick Add Form'),
+                            labels = c(1, 2, 3, 4, 5 ))
+
+plot(mydata$Lead_Origin)
+
+mydata$Lead_Source = factor(mydata$Lead_Source,
+                            levels = c('bing', 'blog', 'Click2call', 'Direct Traffic','Facebook','Google','Live Chat','NC_EDM','Olark Chat','Organic Search','Pay per Click Ads','Press_Release','Reference','Referral Sites','Social Media','testone','WeLearn','welearnblog_Home','Welingak Website','youtubechannel',''),
+                            labels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,10))
+
+plot(mydata$Lead_Source)
+
+mydata$Do_Not_Email = factor(mydata$Do_Not_Email,
+                             levels = c('Yes','No'), labels = c(1, 2))
+
+plot(mydata$Do_Not_Email)
+
+mydata$Last_Activity = factor(mydata$Last_Activity, c('Approached upfront','Converted to Lead','Email Bounced','Email Link Clicked','Email Marked Spam','Email Opened','Email Received','Form Submitted on Website','Had a Phone Conversation','Olark Chat Conversation','Page Visited on Website','Resubscribed to emails','SMS Sent','Unreachable','Unsubscribed','View in browser link Clicked','Visited Booth in Tradeshow',''), labels = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18))
+
+plot(mydata$Last_Activity)
+
+mydata$Converted = factor( mydata$Converted)
+
+mydata$Country = factor(mydata$Country, c('Asia/Pacific Region','Australia','Bahrain','Bangladesh','Belgium','Canada','China','Denmark','France','Germany','Ghana','Hong Kong','India','Indonesia','Italy','Kenya','Kuwait','Liberia','Malaysia','Netherlands','Nigeria','Oman','Philippines','Qatar','Russia','Saudi Arabia','Singapore','South Africa','Sri Lanka','Sweden','Switzerland','Tanzania','Uganda','United Arab Emirates','United Kingdom','United States','unknown','Vietnam'),c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38))
+
+plot(mydata$Country)
+# 13 number row (India) has maximum ( more than 95%) hence deleting this row as well.
+
+mydata = mydata [ , -10]
+#mydata = mydata [ , -1]
+
+mydata$Lead_Quality = factor(mydata$Lead_Quality, c('High in Relevance','Low in Relevance','Might be','Not Sure','Worst'), labels = c(1,2,3,4,5))
+
+plot(mydata$Lead_Quality)
+
+#Since lead_quality is given by the team after contacting the lead hence has no relevance.
+mydata = mydata [ , -14]
+
+mydata$Lead_Profile[mydata$Lead_Profile == 'Select'] <- ''
+
+mydata$Lead_Profile = factor(mydata$Lead_Profile,c('Dual Specialization Student','Lateral Student','Other Leads','Potential Lead','Student of SomeSchool',''), labels = c(1,2,3,4,5,6))
+
+plot(mydata$Lead_Profile)
+mydata = mydata [ , -14]
+#since more than 70% data are missing, hence deleting this as well.
+
+
+mydata$Asymmetrique_Activity_Index = factor(mydata$Asymmetrique_Activity_Index, c('01.High','02.Medium','03.Low',''), labels = c(1,2,3,4))
+
+plot(mydata$Asymmetrique_Activity_Index)
+mydata = mydata [ , -15]
+# Deleting it since it was given by the internal team
+mydata$Asymmetrique_Profile_Index = factor(mydata$Asymmetrique_Profile_Index, c('01.High','02.Medium','03.Low'), labels = c(1,2,3))
+
+plot(mydata$Asymmetrique_Profile_Index)
+mydata = mydata [ , -15]
+# Deleting it since it was given by the internal team
+
+#Simiarly deleting "Asymmetrique_Profile_Score"
+
+mydata = mydata [ , -15]
+
+mydata$Tags = factor(mydata$Tags, c('Already a student','Busy','Closed by Horizzon','Diploma holder (Not Eligible)', 'Not Eligible', 'Graduation in progress','In confusion whether part time or DLP','in touch with EINS','Interested  in full time MBA','Interested in Next batch','Interested in other courses','invalid number','Lateral student','Lost to EINS','Lost to Others','Not doing further education','number not provided','opp hangup','Recognition issue (DEC approval)','Ringing','Shall take in the next coming month','Still Thinking','switched off','University not recognized','Want to take admission but has financial problems','Will revert after reading the email','wrong number given'), labels = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27))
+
+plot(mydata$Tags)
+#Since more than 60% data are missing hence deleting that as well
+
+mydata = mydata [ , -13]
+
+mydata$Last_Notable_Activity = factor(mydata$Last_Notable_Activity, c('Approached upfront','Email Bounced','Email Link Clicked','Email Marked Spam','Email Opened','Email Received','Form Submitted on Website','Had a Phone Conversation','Modified','Olark Chat Conversation','Page Visited on Website','Resubscribed to emails','SMS Sent','Unreachable','Unsubscribed','View in browser link Clicked'), labels = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16))
+
+plot(mydata$Last_Notable_Activity)
+# since this is filled by internal team and has no relevence for prediction hence deleting it as well
+
+mydata = mydata [ , -15]
+sum(is.na(mydata))
+str(mydata)
+#also drop "lead number", since it has no meaning in prediction
+mydata = mydata [ , -1]
+mydata = mydata %>% na.omit()
+
+
+# Feature Scaling (optional)
+mydata [, 5:7] = scale(mydata [,5:7])
+
+
+
+# Splitting the data into Training and Test -------------
+
+library(caTools)
+set.seed(123)
+
+split = sample.split(mydata$Converted, SplitRatio=0.8)
+
+training_set = subset(mydata, split==TRUE)
+
+test_set = subset(mydata, split==FALSE)
+
+
+# Logistic Regression ---------------------------------
+
+
+logReg = glm(formula = Converted ~ .,
+             family = binomial,
+             data = training_set)
+
+summary(logReg)
+#lead_source has no impact on conversion, hence not selecting it
+
+
+
+# Predict converted for the training set
+p1<-predict(logReg,training_set,type = 'response')
+head(p1)
+head(training_set)
+
+# Set a threshold of 0.5 and create predictions in 0 or 1
+
+#Mis-classification error - train data
+pred1 <-ifelse(p1>0.5,1,0)
+tab1 <- table(Predicted = pred1,Actual = training_set$Converted)
+tab1
+sum(diag(tab1))/sum(tab1)*100
+
+# Mis-Classification error - test data
+
+p2<- predict(logReg,test_set,type = 'response')
+pred2 <- ifelse(p2>0.5,1,0)
+tab2<-table(Predicted=pred2,Actual=test_set$Converted)
+Actual
+#Predicted    0    1
+        # 0 3821  762
+         #1  474 1808
+tab2
+
+# Accuracy % and Confusion Matrix (at the threshold of 0.5)
+sum(diag(tab2))/sum(tab2)*100
+
+#81.99563
+# ROC and AUC
+
+#Logistic Regression Model
+library(nnet)
+mymodel <- multinom(Converted~.,data=mydata)
+
+#without any model, what would be accuracy
+table(mydata$Converted)
+# 62.56% accuracy without any data modeling
+
+#Model Performance Evaluation 
+library(ROCR)
+pred <- predict(mymodel,mydata,type='prob')
+head(pred) 
+head(mydata$Converted)
+hist(pred)
+pred <- prediction (pred,mydata$Converted)
+eval <- performance(pred,"acc")
+plot(eval)
+
+#Manually calculate the peak
+abline(h=0.82, v=0.45)
+
+#identify best accuracy
+max<- which.max(slot(eval,"y.values")[[1]])
+max
+y <- slot(eval,"y.values")[[1]][max]
+y
+x <- slot(eval,"x.values")[[1]][max]
+x
+# x maximum value = 0.4986615
+print(c(Y=y,X=x))
+
+#ROC curve ( receiver operating characteristic )
+roc <- performance(pred,"tpr","fpr")
+plot(roc, colorize=T, main="ROC Curve")
+abline(a=0,b=1)
+
+#AUC ( Area Under the Curve)
+auc <- performance(pred,"auc")
+auc <- unlist(slot(auc,"y.values"))
+auc
+
+auc <- round(auc,4)
+auc
+
+
+
+# run SVM with different kernels ----------------------
+
+
+# Method1: manually check every kernels  --------------
+
+
+# Method2: use MLR package for automatic calcu --------
+
+
+#install.packages('mlr')
+library(mlr)
+library(tidyverse)
+library(kernlab)
+# load dataset ----------------------------------------
+
+#install.packages('kernlab')
+data(mydata,package = 'kernlab')
+head(mydata)
+dim(mydata)
+mydata <- sample_n(mydata,8581)%>% as_tibble() 
+glimpse(mydata)
+table(mydata$Converted)
+
+# define task and learner -----------------------------
+
+defTask <- makeClassifTask(data = mydata, target = "Converted")
+
+svm <- makeLearner("classif.svm", predict.type = "prob")
+
+# define hyperparameter search space ------------------
+
+getParamSet("classif.svm")
+
+kernels <- c("polynomial","radial","sigmoid")
+svmPramSpace <- makeParamSet(
+  makeDiscreteParam("kernel",values = kernels),
+  makeIntegerParam("degree", lower = 1, upper = 3),
+  makeNumericParam("cost", lower = 5, upper = 20),
+  makeNumericParam("gamma", lower = 0, upper = 2)
+)
+
+# Define search procedure -----------------------------
+#makeTuneControlIrace()
+
+randSearch <- makeTuneControlRandom(maxit = 20)
+
+
+# Define nested cross-validation ----------------------
+
+inner <- makeResampleDesc("Holdout",split = 0.8)
+outer <- makeResampleDesc("CV",iters = 3)
+# learn this when you have time :"LOO", "RepCV", "subSample
+
+
+# Define wrapper for learner and tuning ---------------
+
+
+svmWrapper <- makeTuneWrapper(
+  learner = svm,
+  resampling = inner,
+  par.set = svmPramSpace,
+  control = randSearch
+)
+
+# Run Cross Validation --------------------------------
+
+
+cvWtihTuning <- resample(learner = svmWrapper,
+                         task = defTask,
+                         resampling = outer,
+                         models = TRUE)
+#Result: kernel=polynomial; degree=2; cost=8.71; gamma=0.356 : mmce.test.mean=0.1912664
+#[Resample] iter 3:    0.1737762 
+#Aggregated Result: mmce.test.mean=0.1802825
+#mmce = mean mis classification error
+
+
+cvWtihTuning$measures.test
+
+#iter      mmce
+#1    1 0.1905594
+#2    2 0.1765117
+#3    3 0.1737762
+
+# Train model using all data --------------------------
+
+
+tunedSvmPars <-tuneParams(learner = svm,
+                          task = defTask,
+                          resampling = inner,
+                          par.set = svmPramSpace,
+                          control = randSearch)
+tunedSvmPars
+
+#Tune result:
+ # Op. pars: kernel=radial; degree=2; cost=17.1; gamma=0.066
+#mmce.test.mean=0.1729761
+
+tunedSvm <- setHyperPars(svm,par.vals = tunedSvmPars$x)
+tunedSvmModel <-train(tunedSvm,defTask)
+
+predict(tunedSvmModel, newdata = mydata)
+
+
+library(e1071)
+classifier_svm_t = svm(formula = Converted ~ .,
+                 data = mydata,
+                 type = 'C-classification',
+                 kernel = 'radial',
+                 degree = 2,
+                 cost = 17.1,
+                 gamma = 0.066
+)
+summary(classifier_svm_t)
+
+# Use the tuned model to predict Converted
+pred_Converted_svm_t = predict(classifier_svm_t, type = 'response', newdata=test[-4])
+
+
+# Step 8
+# Calculate Accuracy, AUC and Confusion Matrix
+confusionMatrix(pred_Converted_svm_t, test[, 4])
+
+# ROC and AUC
+pr_svm_t = ROCR::prediction(as.numeric(pred_Converted_svm_t), test_set$Converted)
+perf_svm_t = ROCR::performance(pr_svm_t,measure = 'tpr',x.measure = 'fpr')
+ROCR::plot(perf_svm_t, colorize =  TRUE, main = "ROC Curve SVM Tuned")
+abline(a = 0, b =1)
+auc_svm_t = auc(test_set[, 3], pred_Converted_svm_t)
+auc_svm_t
+# Irace 180 AUC = 0.8377562
+
+pred_Converted = predict(classifier, type = 'response', newdata = test[-4])
+
+# install.packages('e1071')
+library(caret)
+
+confusionMatrix((pred_Converted), test)
+
+
+library(ROCR)
+library(Metrics)
+
+pr = prediction(as.numeric(pred_), test_set$e_signed)
+perf = performance(pr,measure = 'tpr',x.measure = 'fpr')
+plot(perf)
+
+auc(test_set[, 16], pred_esigned)
+
+
+
+# Random Forest ---------------------------------------
+#install.packages('pROC')
+# Data Partition
+library(mlr)
+library(pROC)
+set.seed(123)
+ind <- sample(2, nrow(mydata), replace = TRUE, prob = c(0.8, 0.2))
+train <- mydata[ind==1,]
+test <- mydata[ind==2,]
+
+# Random Forest
+library(randomForest)
+set.seed(222)
+rf <- randomForest(Converted~., data = train)
+print(rf)
+
+rf <- randomForest(Converted~., data=train,
+                   ntree = 300,
+                   mtry = 8,
+                   importance = TRUE,
+                   proximity = TRUE)
+print(rf)
+attributes(rf)
+
+# Prediction & Confusion Matrix - train data
+library(caret)
+p1 <- predict(rf, train)
+confusionMatrix(p1, train$Converted)
+
+# # Prediction & Confusion Matrix - test data
+p2 <- predict(rf, test)
+confusionMatrix(p2, test$Converted)
+
+# Error rate of Random Forest
+plot(rf)
+
+# Tune mtry
+t <- tuneRF(train[,-4], train[,4],
+            stepFactor = 0.5,
+            plot = TRUE,
+            ntreeTry = 300,
+            trace = TRUE,
+            improve = 0.05)
+
+# No. of nodes for the trees
+hist(treesize(rf),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+importance(rf)
+varUsed(rf)
+library(dplyr)
+# Tuning the Random Forest model by varying values of hyperparameters
+set.seed(123)
+NewData <- sample_n(mydata,506)%>% as_tibble() 
+str(NewData)
+# define task and learner ----------------------
+library(mlr)
+defTaskrf <- makeClassifTask(data = NewData,target = "Converted")
+
+rf <- makeLearner("classif.randomForest",predict.type = "response")
+
+
+# define hyperparameter search space ----------------------
+getParamSet("classif.randomForest")
+paramSpacerf <- makeParamSet( makeIntegerParam("mtry", lower = 1, upper = 15),
+                              makeIntegerParam("ntree", lower = 250, upper = 2500),
+                              makeIntegerParam("nodesize", lower = 4, upper = 80))
+
+# Define search procedure ----------------------
+randSearchrf <- makeTuneControlIrace(maxExperiments = 100)
+
+# Define nested cross-validation ----------------------
+innerrf <- makeResampleDesc("Holdout",split = 0.8)
+outerrf <- makeResampleDesc("CV",iters = 3)
+
+# Define wrapper for learner and tuning ---------------
+rfWrapper <- makeTuneWrapper(learner = rf, resampling = innerrf, 
+                             par.set = paramSpacerf, control = randSearchrf)
+
+# Run Cross Validation --------------------------------
+cvWtihTuningrf <- resample(learner = rfWrapper, task = defTaskrf, 
+                           resampling = outerrf, models = T)
+cvWtihTuningrf$measures.test
+
+# Train model using all data --------------------------
+tunedParsrf <-tuneParams(learner = rf,
+                         task = defTaskrf,
+                         resampling = innerrf,
+                         par.set = paramSpacerf,
+                         control = randSearchrf)
+tunedParsrf
+# Tuned model with hyperparameters
+# Step 5
+set.seed(123)
+regressor_rf_t = randomForest(Converted ~., data = train, mtry = 4, 
+                              ntree = 2020, nodesize = 21)
+print(regressor_rf_t)
+
+# Step 6
+# Using the regression model, predict MEDV for test set
+Converted_predict_rf_t = predict(regressor_rf_t, newdata=test)
+
+# Step 7
+# Calculate Accuracy - AUC
+
+
+
+#variable importance
+varImpPlot(regressor_rf_t)
+varImpPlot(regressor_rf_t,
+           sort = T,
+           main = "Variable Importance")
+importance(regressor_rf_t)
+varUsed(regressor_rf_t)
+
+# Extract Single Tree
+randomForest::getTree(regressor_rf_t, 2, labelVar = TRUE)
+
+prob_pred_Converted = predict(regressor_rf_t, newdata = test[-4], type='p')
+pred_Converted = predict(prob_pred_Converted, newdata = test[-4], type='class')
+
+# install.packages('e1071')
+library(caret)
+
+confusionMatrix(pred_Converted, test[, 4])
+# plot ROC
+# install.packages('ROCR')
+# install.packages('Metrics')
+library(ROCR)
+library(Metrics)
+
+
+pr = prediction(as.numeric(pred_Converted), test[  ,4])
+
+perf = performance(pr, measure = 'tpr',x.measure = 'fpr')
+plot(perf)
+
+auc(test[, 4], pred_Converted)
+
+# Plotting the tree
+plot(classifier)
+print(classifier)
+
+
+# end of Random Forest 
+
+##################################
+
+# Neural Network --------------------------------------
+
+# Libraries
+library(keras)
+library(mlbench) 
+library(dplyr)
+library(magrittr)
+library(neuralnet)
+
+data <- mydata
+str(data)
+
+data %<>% mutate_if(is.factor, as.numeric)
+
+# Neural Network Visualization
+n <- neuralnet(Converted ~ .,
+               data = data,
+               hidden = c(10,5),
+               linear.output = F,
+               lifesign = 'full',
+               rep=1)
+plot(n,
+     col.hidden = 'darkgreen',
+     col.hidden.synapse = 'darkgreen',
+     show.weights = F,
+     information = F,
+     fill = 'lightblue')
+
+# Matrix
+data <- as.matrix(data)
+dimnames(data) <- NULL
+view(data)
+# Partition
+set.seed(123)
+ind <- sample(2, nrow(data), replace = T, prob = c(.8, .2))
+training <- data[ind==1,c(1,2,3,5,6,7,8,9,10,11,12,13)]
+test <- data[ind==2, c(1,2,3,5,6,7,8,9,10,11,12,13)]
+trainingtarget <- data[ind==1, 4]
+testtarget <- data[ind==2, 4]
+
+# Normalize
+m <- colMeans(training)
+s <- apply(training, 2, sd)
+training <- scale(training, center = m, scale = s)
+test <- scale(test, center = m, scale = s)
+
+# Create Model
+model <- keras_model_sequential()
+model %>% 
+  layer_dense(units = 5, activation = 'relu', input_shape = c(12)) %>%
+  layer_dense(units = 1)
+
+# Compile
+model %>% compile(loss = 'mse',
+                  optimizer = 'rmsprop',
+                  metrics = 'mae')
+
+# Fit Model
+mymodel <- model %>%
+  fit(training,
+      trainingtarget,
+      epochs = 100,
+      batch_size = 32,
+      validation_split = 0.2)
+
+# Evaluate
+model %>% evaluate(test, testtarget)
+pred <- model %>% predict(test)
+mean((testtarget-pred)^2)
+plot(testtarget, pred)
+
+
+
+# Fine tuning -----------------------------------------
+
+
+model <- keras_model_sequential()
+model %>% 
+  layer_dense(units = 10, activation = 'relu', input_shape = c(12)) %>%
+  layer_dense(units = 5, activation = 'relu') %>% 
+  layer_dense(units = 1)
+summary(model)
+# Compile
+model %>% compile(loss = 'mse',
+                  optimizer = 'rmsprop',
+                  metrics = 'mae')
+
+# Fit Model
+mymodel <- model %>%
+  fit(training,
+      trainingtarget,
+      epochs = 100,
+      batch_size = 32,
+      validation_split = 0.2)
+
+# Evaluate
+model %>% evaluate(test, testtarget)
+pred <- model %>% predict(test)
+mean((testtarget-pred)^2)
+plot(testtarget, pred)
+
+
+
+# changing neurals and others -------------------------
+
+model <- keras_model_sequential()
+model %>% 
+  layer_dense(units = 100, activation = 'relu', input_shape = c(12)) %>%
+  layer_dropout(rate = 0.4) %>%
+  layer_dense(units = 50, activation = 'relu') %>%
+  layer_dropout(rate = 0.3)%>%
+  layer_dense(units = 20, activation = 'relu') %>%
+  layer_dropout(rate = 0.2)%>%
+  layer_dense(units = 1)
+summary(model)
+
+
+# Compile
+model %>% compile(loss = 'mse',
+                  optimizer = optimizer_rmsprop(lr=0.002),
+                  metrics = 'mae')
+
+# Fit Model
+mymodel <- model %>%
+  fit(training,
+      trainingtarget,
+      epochs = 100,
+      batch_size = 32,
+      validation_split = 0.2)
+
+# Evaluate
+model %>% evaluate(test, testtarget)
+pred <- model %>% predict(test)
+mean((testtarget-pred)^2)
+plot(testtarget, pred)
+
+
