@@ -1,0 +1,227 @@
+
+mydata <- read.csv("02.csv")
+str(mydata)
+
+# can not do time series with all the variables in hand. So look out for things with are not relevent.
+
+#  first is chutney and sambar, people generally get these with Idly and Dosa and plus repeat. so if we can predict idly and dosa we can predict the other two.
+
+# Idea is that sum idly and dosa and then find the linear regression
+sc <- read.csv("sambarchautney.csv")
+sc_model <- lm(MaxofSambarChutney~ï..SumIdlyDosa, data = sc)
+sc_model
+summary(sc_model)
+
+# There is strong co-relation between sambar, chautney and idly dosa so I am deleting sambar and chutney
+
+#sambar or chutney = 0.4642 sum( idly, dosa) + 92.4376
+
+mydata <- mydata [ , -(5:6)]
+
+#Creating a new dataset in which I will add all the food items and will compare the total with BKFST_OCCUP. IF there is any relation to predict food items based on BKFST_OCCUP.
+
+idly <- cbind(mydata$BKFST_OCCUP,mydata$Idly)
+idly <- as.data.frame(idly)
+model <- lm(V2~V1, data = idly)
+model
+summary(model)
+# idly = 0.04456 BKFST_OCCUP + 49.68300
+
+dosa <- cbind(mydata$BKFST_OCCUP,mydata$Dosa)
+dosa <- as.data.frame(dosa)
+model <- lm ( V2~V1, data = dosa)
+model
+summary(model)
+# dosa = -0.03707 BKFST_OCCUP + 33.45358
+
+continental <- cbind(mydata$BKFST_OCCUP,mydata$Continental.B.F)
+continental <- as.data.frame(continental)
+model <- lm ( V2~V1, data = continental)
+model
+summary(model)
+# continental = -0.06524 BKFST_OCCUP + 55.34115
+
+Nindian <- cbind(mydata$BKFST_OCCUP,mydata$North.Indian.B.F)
+Nindian <- as.data.frame(Nindian)
+model <- lm ( V2~V1, data = Nindian)
+model
+summary(model)
+# dosa = 0.01125 FST_OCCUP + 1.02629.
+# But pr(>|t|) ratio is very low and has no star, which means it has almost no relation with BKFST_OCCUP, so I will come back.
+
+omellette <- cbind(mydata$BKFST_OCCUP,mydata$Omellette)
+omellette <- as.data.frame(omellette)
+model <- lm ( V2~V1, data = omellette)
+model
+summary(model)
+# omellette = 0.04451 BKFST_OCCUP + 4.01375
+# But pr(>|t|) ratio is very low and has no star, which means it has almost no relation with BKFST_OCCUP, so I will come back.
+
+
+
+
+# will delete all the items except BKFST_OCCUP.
+
+mydata <- mydata [ , -(3:7)]
+mydata$ï..Date <- as.Date(mydata$ï..Date)
+#library(forecast)
+#model <- auto.arima(data)
+#str(data)
+
+
+require(forecast)
+rawdata = read.csv("02_only_occ.csv", head=TRUE, sep=",")
+
+
+# Create time series vectors of type ts - training set timeseries
+bk_occ <- ts(rawdata[,2], c(274), frequency=52)
+
+bk_occ
+# Split time series vectors of type ts - training and test set timeseries
+training_bk_occ = subset(bk_occ, end = 91)
+test_bk_occ = subset(bk_occ, start = 92)
+
+# Plot the time series with ACF and PACF
+ggtsdisplay(training_bk_occ,
+            plot.type='partial',
+            main ='Training Set - breakfast occ.',
+            xlab='Week',
+            ylab='Order')
+
+#Ljung Box test
+#Why - since more then one time the ACF and PACF lines crosses the dotted boarder.
+Box.test(training_bk_occ, lag = 20, type = 'Ljung-Box')
+
+# Identify the best fitting SARIMA model
+bk_occ_arima = auto.arima(training_bk_occ, approximation=FALSE, trace=FALSE)
+
+# The time series model fitted
+arimaorder(bk_occ_arima)
+plot(bk_occ_arima)
+print(bk_occ_arima)
+checkresiduals(bk_occ_arima)
+
+# Accuracy of the model
+training_bk_occ_accuracy = accuracy(bk_occ_arima)
+
+
+# Testing the accuracy with test data
+# Plot the time series with ACF and PACF
+ggtsdisplay(test_bk_occ,
+            plot.type='partial',
+            main ='Test Set - breakfast occ',
+            xlab='Weeks',
+            ylab='orders')
+
+# Forecast for 10 time periods based on the model fitted
+forecast_bk_occ = forecast(bk_occ_arima, 7)
+forecast_bk_occ
+# Accuracy of predictions - forecast values and test time series
+test_bk_occ_accuracy = accuracy(forecast_bk_occ, test_bk_occ)
+
+# Plot the time series, forecast values along with actual values
+autoplot(forecast_bk_occ) + autolayer(test_bk_occ)
+
+
+# Other plots for entire time series data
+# gglagplot(acetazolamide250mg, lags=4)
+
+ggmonthplot(bk_occ)
+
+ggseasonplot(bk_occ)
+
+print(forecast_bk_occ)
+
+
+# Title:  MLP: Multilayer Perceptron Neural Networks
+# File:   MLP.R
+# install.packages("pacman")
+
+# Install and/or load packages with pacman
+pacman::p_load(  # Use p_load function from pacman
+  datasets,      # R's built-in sample datasets
+  magrittr,      # Pipes
+  nnfor,         # Neural networks for time-series data
+  pacman,        # Load/unload packages
+  rio,           # Import/export data
+  tidyverse      # So many reasons
+)
+
+# Set random seed for reproducibility in processes like
+# splitting the data. You can use any number.
+set.seed(123)
+
+df <- bk_occ
+
+# See data
+df
+
+# Plot data
+df %>%
+  plot(
+    main = "Daily breakfast occupancy",
+    xlab = "occupancy",
+    ylab = "orders",
+    ylim = c(0, 700)
+  )
+
+# SPLIT DATA ###############################################
+
+# Use data from 1949 through 1957 for training
+trn <- df %>% window(end = c(2013, 01))
+trn      # Show data in Console
+trn %>%  # Plot data
+  plot(
+    main = "Breakfast occupancy",
+    xlab = "Year",
+    ylab = "orders",
+    ylim = c(0, 700)
+  )
+trn <- training_bk_occ
+tst <- test_bk_occ
+# Use data from 1958 through 1960 for testing
+tst <- df %>% window(start = c(2012,10))
+tst      # Show data in Console
+tst %>%  # Plot data
+  plot(
+    main = "Monthly Intl Air Passengers: Testing Data",
+    xlab = "Year: 1958-1960",
+    ylab = "Monthly Passengers (1000s)",
+    ylim = c(0, 700)
+  )
+
+# FIT MLP MODELS ###########################################
+
+# Fit default MLP model; number of hidden nodes = 5 (can add
+# the argument hd.auto.type = "set") (takes a few seconds)
+fit1  <- trn  %>% mlp()
+pred1 <- fit1 %>% forecast(h = 17)
+pred1                                  # Show predictions
+pred1 %>% plot()                       # Plot predictions
+tst   %>% lines(lwd = 2, col = "red")  # Plot testing data
+
+# Fit MLP model with number of hidden nodes determined by
+# 20% validation (takes a while; 35 seconds on my machine)
+fit2  <- trn  %>% mlp(hd.auto.type = "valid")
+pred2 <- fit2 %>% forecast(h = 17)
+pred2                                  # Show predictions
+pred2 %>% plot()                       # Plot predictions
+tst   %>% lines(lwd = 2, col = "red")  # Plot testing data
+
+# Fit MLP model with number of hidden nodes determined by
+# 5-fold cross-validation (takes an even longer while; about
+# 3 minutes on my machine)
+fit3  <- trn  %>% mlp(hd.auto.type = "cv")
+pred3 <- fit3 %>% forecast(h = 17)
+pred3                                  # Show predictions
+pred3 %>% plot()                       # Plot predictions
+tst   %>% lines(lwd = 2, col = "red")  # Plot testing data
+
+# END #################################################
+
+#discriptive analysis
+
+mydata <- read.csv("02.csv")
+str(mydata)
+mydata <- mydata [ , -1]
+plot(mydata)    
