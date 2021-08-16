@@ -1,0 +1,411 @@
+data <- read.csv("binary.csv")
+str(data)
+sum(is.na(data))
+# no mssing value
+
+data <- data [ , -1]
+
+#predicting NPS based on user demography 
+library(dplyr)
+
+data <- data %>% select(HospitalNo2,	MaritalStatus,	AgeYrs,	Sex,	BedCategory,	Department,	Estimatedcost,	InsPayorcategory,	State,	Country,	STATEZONE,LengthofStay,	CE_NPS,	NPS_Status) %>% na.omit()
+
+str(data)
+
+
+data$MaritalStatus <- factor(data$MaritalStatus, c('Single','Married','Separated','Divorced','Widowed'), labels = c(1,2,3,4,5))
+
+data$Sex <- factor(data$Sex, c('M','F'), labels = c(1,2))    
+
+data$BedCategory <- factor(data$BedCategory, c('CCU','DAYCARE','GENERAL','GENERAL HD','ITU','Renal ICU','SEMISPECIAL','SEMISPECIAL HD','SPECIAL','ULTRA DLX','ULTRA SPL'), labels = c(1,2,3,4,5,6,7,8,9,10,11))                                
+
+data$Department <- factor(data$Department, c('CARDIOLOGY','GEN','GYNAEC','ORTHO','PEDIATRIC','RENAL','SPECIAL'), labels = c(1,2,3,4,5,6,7))                                
+
+data$InsPayorcategory <- factor(data$InsPayorcategory, c('CORPORATE','EXEMPTION','INSURANCE','INTERNATIONAL','PATIENT'), labels = c(1,2,3,4,5))                                
+
+data$State <- factor(data$State, c('Africa','Andaman And Nicobar','Andhra Pradesh','Assam','Bangladesh','Bhubaneshwar','Bihar','Chandigarh','Chhattisgarh','Darjeeling','Delhi','Doha','Germany','Goa','Gujarat','Haryana','International','Iraq','Jharkand','Jharkhand','Karnataka','Kenya','Kerala','Kolkata','Kolkatta','Madhya Pradesh','Maharashtra','Maldives','Manipur','Mauritius','Meghalaya','Mizoram','Mongolia','Mumbai','Muscat','Nepal','New Zealand','Nigeria','Oman','Ontario','Orissa','Rajasthan','Ranchi','RWANDA','Saudi Arabia','Sikkim','Tamil Nadu','Tanzania','Tripura','UAE','UK','Unknown','USA','Uttar Pradesh','Uttarakhand','West Bengal','Zimbabwe'), labels = c(1,2,3,4,1,5,6,7,8,9,10,1,1,11,12,13,1,1,14,14,15,1,16,17,18,19,20,1,21,1,22,23,1,24,1,1,1,1,1,1,24,25,26,1,1,27,28,1,29,1,1,30,1,31,32,33,1))
+
+data$NPS_Status <- factor(data$NPS_Status, c('Detractor','Promotor'), labels = c(1,2))
+
+data <- data [ , -(10:11)]
+data <- data [ , -11]
+data <- data [ , -1]
+str(data)
+
+data$AgeYrs <- as.numeric(data$AgeYrs)
+data$Estimatedcost <- as.numeric(data$Estimatedcost)
+data$LengthofStay <- as.numeric(data$LengthofStay)
+
+library(caTools)
+set.seed(123)
+
+split = sample.split(data$NPS_Status, SplitRatio=0.8)
+
+training = subset(data, split==TRUE)
+
+test = subset(data, split==FALSE)
+
+# run logistic regression
+
+# Logistic Regression ---------------------------------
+
+
+logReg = glm(formula = NPS_Status ~ .,
+             family = binomial,
+             data = data)
+
+summary(logReg)
+#lead_source has no impact on conversion, hence not selecting it
+
+
+
+# Predict converted for the training set
+p1<-predict(logReg,data,type = 'response')
+head(p1)
+head(data)
+
+# Set a threshold of 0.5 and create predictions in 0 or 1
+
+#Mis-classification error - train data
+pred1 <-ifelse(p1>0.5,1,0)
+tab1 <- table(Predicted = pred1,Actual = data$NPS_Status)
+tab1
+sum(diag(tab1))/sum(tab1)*100
+
+# Mis-Classification error - test data
+
+p2<- predict(logReg,test,type = 'response')
+pred2 <- ifelse(p2>0.5,1,0)
+tab2<-table(Predicted=pred2,Actual=test$NPS_Status)
+tab2
+
+# Accuracy % and Confusion Matrix (at the threshold of 0.5)
+sum(diag(tab2))/sum(tab2)*100
+
+# ROC and AUC
+
+#Logistic Regression Model
+library(nnet)
+mymodel <- multinom(NPS_Status~.,data = data )
+
+
+#without any model, what would be accuracy
+table(data$NPS_Status)
+# 89% accuracy without any data modeling
+str(data)
+#Model Performance Evaluation 
+library(ROCR)
+pred <- predict(mymodel,data,type='prob')
+head(pred) 
+pred <- pred %>% na.omit()
+pred
+head(data$NPS_Status)
+pred <- as.numeric(pred)
+#data$NPS_Status <- as.numeric(data$NPS_Status)
+hist(pred)
+pred1 <- prediction(pred, data$NPS_Status)
+class(pred)
+class(data$NPS_Status)
+pred1 <- prediction (pred, data$NPS_Status)
+eval <- performance(pred1,"acc")
+plot(eval)
+
+#Manually calculate the peak
+abline(h=0.9, v=0.83)
+
+#identify best accuracy
+max<- which.max(slot(eval,"y.values")[[1]])
+max
+y <- slot(eval,"y.values")[[1]][max]
+y
+x <- slot(eval,"x.values")[[1]][max]
+x
+
+print(c(Y=y,X=x))
+
+#ROC curve ( receiver operating characteristic )
+roc <- performance(pred1,"tpr","fpr")
+plot(roc, colorize=T, main="ROC Curve")
+abline(a=0,b=1)
+
+#AUC ( Area Under the Curve)
+auc <- performance(pred1,"auc")
+auc <- unlist(slot(auc,"y.values"))
+auc
+#0.6224
+
+levels(test$variableName) <- levels(train$variableName)
+#install.packages('mlr')
+library(mlr)
+library(tidyverse)
+library(kernlab)
+# load dataset ----------------------------------------
+
+#install.packages('kernlab')
+mydata <- data
+mydata <- mydata %>% na.omit()
+data(mydata,package = 'kernlab')
+head(mydata)
+dim(mydata)
+mydata <- sample_n(mydata,5352)%>% as_tibble() 
+glimpse(mydata)
+table(mydata$NPS_Status)
+
+# define task and learner -----------------------------
+
+defTask <- makeClassifTask(data = mydata, target = "NPS_Status")
+
+svm <- makeLearner("classif.svm", predict.type = "prob")
+
+
+# define hyperparameter search space ------------------
+
+getParamSet("classif.svm")
+
+kernels <- c("polynomial","radial","sigmoid")
+svmPramSpace <- makeParamSet(
+  makeDiscreteParam("kernel",values = kernels),
+  makeIntegerParam("degree", lower = 1, upper = 3),
+  makeNumericParam("cost", lower = 5, upper = 20),
+  makeNumericParam("gamma", lower = 0, upper = 2)
+)
+
+# Define search procedure -----------------------------
+#makeTuneControlIrace()
+
+randSearch <- makeTuneControlRandom(maxit = 20)
+
+
+# Define nested cross-validation ----------------------
+
+inner <- makeResampleDesc("Holdout",split = 0.8)
+outer <- makeResampleDesc("CV",iters = 3)
+# learn this when you have time :"LOO", "RepCV", "subSample
+
+
+# Define wrapper for learner and tuning ---------------
+
+
+svmWrapper <- makeTuneWrapper(
+  learner = svm,
+  resampling = inner,
+  par.set = svmPramSpace,
+  control = randSearch
+)
+
+# Run Cross Validation --------------------------------
+
+
+cvWtihTuning <- resample(learner = svmWrapper,
+                         task = defTask,
+                         resampling = outer,
+                         models = TRUE)
+#Result: Result: kernel=sigmoid; degree=2; cost=13; gamma=0.456 : mmce.test.mean=0.3403361
+#[Resample] iter 3:    0.3727578 
+#Aggregated Result: mmce.test.mean=0.375373
+
+
+cvWtihTuning$measures.test
+
+#iter      mmce
+#1    1 0.3884529
+#2    2 0.3649103
+#3    3 0.3727578
+
+# Train model using all data --------------------------
+
+
+tunedSvmPars <-tuneParams(learner = svm,
+                          task = defTask,
+                          resampling = inner,
+                          par.set = svmPramSpace,
+                          control = randSearch)
+tunedSvmPars
+
+#Tune result:
+# Op. pars: kernel=polynomial; degree=3; cost=8.51; gamma=0.381
+#mmce.test.mean=0.3800187
+
+tunedSvm <- setHyperPars(svm,par.vals = tunedSvmPars$x)
+tunedSvmModel <-train(tunedSvm,defTask)
+
+
+predict(tunedSvmModel, newdata = mydata)
+
+
+library(e1071)
+pred_Converted_svm_t = svm(formula = NPS_Status ~ .,
+                       data = mydata,
+                       type = 'C-classification',
+                       kernel = 'polynomial',
+                       degree = 3,
+                       cost = 8.51,
+                       gamma = 0.381
+)
+
+summary(pred_Converted_svm_t)
+
+
+
+# Use the tuned model to predict Converted
+pred_Converted_svm_t = predict(classifier_svm_t, type = 'prob', newdata=test[-11])
+
+
+# Step 8
+# Calculate Accuracy, AUC and Confusion Matrix
+library(caret)
+confusionMatrix(pred_Converted_svm_t, test[, 11])
+
+#Reference
+#Prediction   1   2   3
+#         1  15  44 105
+#         2  38  94 168
+#         3  56 155 396
+
+
+# ROC and AUC
+pr_svm_t = ROCR::prediction(as.numeric(pred_Converted_svm_t),test$NPS_Status)
+pr_svm_t = ROCR::prediction(as.numeric(pred_Converted_svm_t), test$NPS_Status)
+perf_svm_t = ROCR::performance(pr_svm_t,measure = 'tpr',x.measure = 'fpr')
+ROCR::plot(perf_svm_t, colorize =  TRUE, main = "ROC Curve SVM Tuned")
+abline(a = 0, b =1)
+auc_svm_t = auc(test_set[, 3], pred_Converted_svm_t)
+auc_svm_t
+# Irace 180 AUC = 0.6377562
+
+
+# Random Forest ---------------------------------------
+#install.packages('pROC')
+# Data Partition
+library(mlr)
+library(pROC)
+set.seed(123)
+mydata <- data
+mydata <- mydata %>% na.omit()
+ind <- sample(2, nrow(mydata), replace = TRUE, prob = c(0.8, 0.2))
+train <- mydata[ind==1,]
+test <- mydata[ind==2,]
+
+# Random Forest
+library(randomForest)
+set.seed(222)
+rf <- randomForest(NPS_Status~., data = train)
+print(rf)
+
+rf <- randomForest(NPS_Status~., data=train,
+                   ntree = 300,
+                   mtry = 8,
+                   importance = TRUE,
+                   proximity = TRUE)
+print(rf)
+attributes(rf)
+
+# Prediction & Confusion Matrix - train data
+library(caret)
+p1 <- predict(rf, train)
+confusionMatrix(p1, train$NPS_Status)
+
+# # Prediction & Confusion Matrix - test data
+p2 <- predict(rf, test)
+confusionMatrix(p2, test$NPS_Status)
+
+# Error rate of Random Forest
+plot(rf)
+
+# Tune mtry
+t <- tuneRF(train[,-11], train[,11],
+            stepFactor = 0.5,
+            plot = TRUE,
+            ntreeTry = 100,
+            trace = TRUE,
+            improve = 0.05)
+
+#OBB is maximum when mtry is 3.
+
+# No. of nodes for the trees
+hist(treesize(rf),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+importance(rf)
+varUsed(rf)
+library(dplyr)
+# Tuning the Random Forest model by varying values of hyperparameters
+set.seed(123)
+NewData <- sample_n(mydata,5352)%>% as_tibble() 
+str(NewData)
+# define task and learner ----------------------
+library(mlr)
+defTaskrf <- makeClassifTask(data = NewData,target = "NPS_Status")
+
+rf <- makeLearner("classif.randomForest",predict.type = "response")
+
+
+# define hyperparameter search space ----------------------
+getParamSet("classif.randomForest")
+paramSpacerf <- makeParamSet( makeIntegerParam("mtry", lower = 1, upper = 15),
+                              makeIntegerParam("ntree", lower = 100, upper = 1500),
+                              makeIntegerParam("nodesize", lower = 4, upper = 80))
+
+# Define search procedure ----------------------
+randSearchrf <- makeTuneControlIrace(maxExperiments = 100)
+
+# Define nested cross-validation ----------------------
+innerrf <- makeResampleDesc("Holdout",split = 0.8)
+outerrf <- makeResampleDesc("CV",iters = 3)
+
+# Define wrapper for learner and tuning ---------------
+rfWrapper <- makeTuneWrapper(learner = rf, resampling = innerrf, 
+                             par.set = paramSpacerf, control = randSearchrf)
+
+# Run Cross Validation --------------------------------
+cvWtihTuningrf <- resample(learner = rfWrapper, task = defTaskrf, 
+                           resampling = outerrf, models = T)
+#Result: mtry=2; ntree=534; nodesize=63 : mmce.test.mean=0.3755058
+#[Resample] iter 3:    0.3783632 
+#Aggregated Result: mmce.test.mean=0.3778027
+
+
+cvWtihTuningrf$measures.test
+
+#iter      mmce
+#1    1 0.3660314
+#2    2 0.3890135
+#3    3 0.3783632
+
+# Train model using all data --------------------------
+tunedParsrf <-tuneParams(learner = rf,
+                         task = defTaskrf,
+                         resampling = innerrf,
+                         par.set = paramSpacerf,
+                         control = randSearchrf)
+#Result: Result: mtry=12; ntree=1415; nodesize=79 : mmce.test.mean=0.3737628
+tunedParsrf
+# Tuned model with hyperparameters
+# Step 5
+set.seed(123)
+regressor_rf_t = randomForest(NPS_Status ~., data = train, mtry = 12, 
+                              ntree = 1415, nodesize = 79)
+print(regressor_rf_t)
+
+#Confusion matrix:
+#  1    2 class.error
+#1 253 1352   0.8423676
+#2 272 2413   0.1013035
+
+# Step 6
+# Using the regression model, predict MEDV for test set
+Converted_predict_rf_t = predict(regressor_rf_t, newdata=test)
+
+# Step 7
+# Calculate Accuracy - AUC
+
+#0.6214452
+#end of Random Forest 
+
+##################################
