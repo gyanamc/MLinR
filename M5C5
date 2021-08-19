@@ -1,0 +1,286 @@
+# Sentiment Analysis: Sentiment Scoring
+# install.packages("pacman")
+
+# Install and/or load packages with pacman
+pacman::p_load(  # Use p_load function from pacman
+  gutenbergr,    # Import Project Gutenberg texts
+  magrittr,      # Pipes
+  pacman,        # Load/unload packages
+  rio,           # Import/export data
+  textdata,      # Text functions
+  tidytext,      # Text functions
+  tidyverse      # So many reasons
+)
+
+# IMPORT DATA ##############################################
+
+df <- import("newdata.csv") %>% as_tibble()
+df <- df [ , 6]
+# Look at the first few rows
+df
+str(df)
+
+# PREPARE DATA #############################################
+# Add line numbers to divide text into sections
+df %<>% 
+  mutate(line = row_number()) %>%        
+  print()
+
+# Tokenize the data
+words <- df %>%
+  unnest_tokens(word, text) %>%    # Break lines into words
+  print()
+
+# SENTIMENT FREQUENCIES ####################################
+
+# Calculate and print score frequencies. Sentiment scores
+# come from the AFINN lexicon, which scores the sentiment of
+# words on a scale of -5 (most negative) to +5 (most
+# positive). (Note: you may need to confirm that you want to
+# download the AFINN lexicon.)
+score_freq <- words %>%
+  inner_join(get_sentiments("afinn")) %>%
+  group_by(value) %>% # Grouping by sentiment scores
+  summarize(n = n()) %>%
+  print()
+
+# Graph score frequencies
+score_freq %>% 
+  ggplot(aes(value, n)) +
+  geom_bar(stat = "identity") +
+  scale_x_continuous(breaks = seq(-5, 4, by = 1)) +
+  ggtitle("The Iliad: Sentiment Scores by Words") +
+  xlab("Sentiment Score") +
+  ylab("Frequency of Words")
+
+# SENTIMENT ARC ############################################
+
+# Divide the text into sections of 100 lines and calculate a
+# sentiment score for each section
+score_arc1 <- words %>% 
+  inner_join(get_sentiments("afinn")) %>%  # Use afinn
+  group_by(section = line %/% 100) %>%     # Divide text in 100
+  summarize(score = mean(value)) %>%       # Section scores
+  print()
+
+score_arc2 <- words %>% 
+  inner_join(get_sentiments("afinn")) %>%  # Use afinn
+  group_by(section = line ) %>%     #  No division 
+  summarize(score = mean(value)) %>%       # Section scores
+  print()
+# Plot scores by section to view narrative arc
+score_arc1 %>% 
+  ggplot(aes(section, score)) +
+  geom_hline(yintercept = 0, col = "red") +
+  geom_line(col = "gray") +
+  geom_smooth(method = loess, col = "gray40") +  
+  ggtitle("The ISKCON Reviews: Mean Sentiment Score by Section") +
+  ylab("Mean Sentiment Score") +
+  xlab("Section of 100 Lines")
+
+# Plot scores by section to view narrative arc
+score_arc2 %>% 
+  ggplot(aes(section, score)) +
+  geom_hline(yintercept = 0, col = "red") +
+  geom_line(col = "gray") +
+  geom_smooth(method = loess, col = "gray40") +  
+  ggtitle("The ISKCON Reviews: Mean Sentiment Score by Section") +
+  ylab("Mean Sentiment Score") +
+  xlab("Section of each Line")
+
+
+# Install and/or load packages with pacman
+pacman::p_load(  # Use p_load function from pacman
+  ggraph,        # Visualize network graphs
+  gutenbergr,    # Import Project Gutenberg texts
+  igraph,        # Network graph functions
+  magrittr,      # Pipes
+  pacman,        # Load/unload packages
+  rio,           # Import/export data
+  tidytext,      # Text functions
+  tidyverse      # So many reasons
+)
+
+# Set random seed for reproducibility in processes like
+# splitting the data
+set.seed(1)  # You can use any number here
+
+
+# Import local file
+df <- df %>% as_tibble()
+
+# Look at the first few rows
+df
+
+# PREPARE DATA #############################################
+
+#Tokenize the data
+df %<>%                # Overwrite data
+  unnest_tokens(       # Separate the text
+    wordpairs,         # Save data in variable `wordpairs`
+    text,              # Save in text format
+    token = "ngrams",  # Split into multiple-word "ngrams"
+    n = 2              # Two words at a time
+  )
+
+# See the tokens/words by frequency
+df %>% count(wordpairs, sort = TRUE) 
+
+# Split word pairs into two variables, which is necessary
+# for network graphs.
+df %<>%
+  separate(
+    wordpairs, 
+    c("word1", "word2"), 
+    sep = " "
+  )  %>%  
+  print()
+
+# Remove word pairs that have stop words. Because there are
+# now two words, it doesn't work to use the `anti_join`
+# function used previously. Instead, the cases are filtered
+# out if either word contains a stop word. This reduces the
+# total number of observations from .... to 172719, an
+# ..% reduction.
+df %<>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word) %>%
+  print()
+
+# Save sorted counts
+df %<>% 
+  count(
+    word1, 
+    word2, 
+    sort = TRUE
+  ) %>%
+  print()
+
+# Pair frequencies
+df %>%
+  group_by(n) %>%
+  summarize(f = n()) %>%  # Count number of words
+  mutate(p = n / sum(n))  # Get proportions of total
+
+# VISUALIZE DATA ###########################################
+
+# See graph data
+df %>%
+  filter(n > 12) %>%           # Use observations w/n > 12
+  graph_from_data_frame()      # Print the data in Console
+
+# Visualize graph data (takes a moment)
+df %>%
+  filter(n > 12) %>%           # Use observations w/n > 12
+  graph_from_data_frame() %>%  # Draw graph from `df`
+  ggraph(layout = "fr") +      # Select "fr" layout
+  geom_edge_link() +           # Graph the links 
+  geom_node_point() +          # Graph the nodes
+  geom_node_text(              # Add labels to nodes
+    aes(label = name),         # Label each node by name
+    nudge_x = .5,              # Move label slightly right
+    nudge_y = .5               # Move label slightly up
+  )
+
+
+
+### Word Cloud ###############
+
+
+# Read file
+apple <- read.csv("newdata.csv")
+
+str(apple)
+
+# Build corpus
+library(tm)
+corpus <- iconv(apple$text)
+corpus <- Corpus(VectorSource(corpus))
+inspect(corpus[1:5])
+
+# Clean text
+corpus<-tm_map(corpus,tolower)
+inspect(corpus[1:5])
+
+corpus <- tm_map(corpus, removePunctuation)
+inspect(corpus[1:5])
+
+corpus <- tm_map(corpus, removeNumbers)
+inspect(corpus[1:5])
+
+cleanset <- tm_map(corpus, removeWords, stopwords('english'))
+inspect(cleanset[1:5])
+
+removeURL <- function(x) gsub('http[[:alnum:]]*', '', x)
+cleanset <- tm_map(cleanset, content_transformer(removeURL))
+inspect(cleanset[1:5])
+
+cleanset <- tm_map(cleanset, removeWords, c('almost', 'indian','new','thing','come','however','take','entire','part','within'))
+cleanset <- tm_map(cleanset, gsub, 
+                   pattern = 'stocks', 
+                   replacement = 'stock')
+
+cleanset <- tm_map(cleanset, stripWhitespace)
+inspect(cleanset[1:5])
+
+# Term document matrix
+tdm <- TermDocumentMatrix(cleanset)
+tdm
+tdm <- as.matrix(tdm)
+tdm[1:10, 1:20]
+inspect(cleanset [1:5])
+# Bar plot
+w <- rowSums(tdm)
+w
+w <- subset(w, w>=25)
+barplot(w,
+        las = 2,
+        col = rainbow(50))
+
+
+# Word cloud
+
+#install.packages("wordcloud")
+library(wordcloud)
+w <- sort(rowSums(tdm), decreasing = TRUE)
+set.seed(222)
+wordcloud(words = names(w),
+          freq = w,
+          max.words = 5000,
+          random.order = F,
+          min.freq = 500,
+          colors = brewer.pal(8, 'Dark2'),
+          scale = c(5, 0.3),
+          rot.per = 0.7)
+
+library(wordcloud2)
+w <- data.frame(names(w), w)
+colnames(w) <- c('word', 'freq')
+wordcloud2(w,
+           size = 0.7,
+           shape = 'triangle',
+           rotateRatio = 0.5,
+           minSize = 1)
+
+letterCloud(w,
+            word = "apple",
+            size=1)
+
+
+# CLEAN UP #################################################
+
+# Clear data
+rm(list = ls())  # Removes all objects from the environment
+
+# Clear packages
+p_unload(all)    # Remove all contributed packages
+
+# Clear plots
+graphics.off()   # Clears plots, closes all graphics devices
+
+# Clear console
+cat("\014")      # Mimics ctrl+L
+
+# Clear R
+# Clear mind :)
+
