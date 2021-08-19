@@ -1,2 +1,2 @@
 # MLinR
-solved R scripts. module 2&3.
+Sample work to showcase proefficiency in coding.
