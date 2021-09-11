@@ -1,0 +1,945 @@
+library(caret)
+library(VIM)
+library(mice)
+library(dplyr)
+library(mice)
+require(xgboost)
+require(Metrics)
+library(randomForest)
+library(e1071)
+library(ROSE) 
+library(rpart)
+
+#setting the path and data----
+
+setwd("C:\\Users\\gyana\\OneDrive\\Documents\\R\\WB\\AIPM\\mod5\\Case3")
+df <- read.csv("REeureka_data_final_2019-01-01_2019-03-01.csv", header = T, stringsAsFactors = F)
+head(df)
+summary(df)
+sum((is.na(df)))
+dim(df)
+
+
+# Near Zero Variable----
+nzv <- nearZeroVar(df, saveMetrics = TRUE)
+head(nzv)
+range(nzv$percentUnique)
+
+# how many have no variation at all
+print(length(nzv[nzv$zeroVar==T,]))
+
+print(paste('Column count before cutoff:',ncol(df)))
+
+# how many have less than 0.1 percent variance
+dim(nzv[nzv$percentUnique > 0.1,])
+
+# remove zero & near-zero variance from original data set
+df_nzv <- df[c(rownames(nzv[nzv$percentUnique > 0.1,])) ]
+print(paste('Column count after cutoff:',ncol(df_nzv)))
+
+summary(df_nzv)
+df_nzv <- cbind(as.data.frame(sapply(df_nzv, as.numeric)),cluster = df$converted_in_7days)
+sum(is.na(df_nzv))
+df_nzv <- df_nzv %>% dplyr::select(-client_id)
+impute = mice(data = df_nzv, m = 3, method = "pmm", seed = 123)
+impute$imp$sessionDuration_hist
+complete(impute, 2)
+df_nzv = complete(impute, 2)
+sum(is.na(df_nzv))
+
+summary(df_nzv)
+
+EvaluateAUC <- function(df_nzv) {
+  CVs <- 5
+  cvDivider <- floor(nrow(df_nzv) / (CVs+1))
+  indexCount <- 1
+  outcomeName <- c('cluster')
+  predictors <- names(df_nzv)[!names(df_nzv) %in% outcomeName]
+  lsErr <- c()
+  lsAUC <- c()
+  for (cv in seq(1:CVs)) {
+    print(paste('cv',cv))
+    dataTestIndex <- c((cv * cvDivider):(cv * cvDivider + cvDivider))
+    dataTest <- df_nzv[dataTestIndex,]
+    dataTrain <- df_nzv[-dataTestIndex,]
+    
+    bst <- xgboost(data = as.matrix(dataTrain[,predictors]),
+                   label = dataTrain[,outcomeName],
+                   max.depth=6, eta = 1, verbose=0,
+                   nround=5, nthread=4, 
+                   objective = "reg:linear")
+    
+    predictions <- predict(bst, as.matrix(dataTest[,predictors]), outputmargin=TRUE)
+    err <- rmse(dataTest[,outcomeName], predictions)
+    auc <- auc(dataTest[,outcomeName],predictions)
+    
+    lsErr <- c(lsErr, err)
+    lsAUC <- c(lsAUC, auc)
+    gc()
+  }
+  print(paste('Mean Error:',mean(lsErr)))
+  print(paste('Mean AUC:',mean(lsAUC)))
+}
+
+EvaluateAUC(df_nzv)
+"Mean Error: 0.06409459479776"
+"Mean AUC: 0.68456036241608"
+##########################################################################################
+# Run model on original data set
+##########################################################################################
+##########################################################################################
+# Run prcomp on the data set
+##########################################################################################
+pmatrix <- scale(df_nzv) # scaling the data
+princ <- prcomp(pmatrix) #pricipal components analysis
+head(princ)
+
+# change nComp to try different numbers of component variables (10 works great)
+nComp <- 1  # 0.99
+dfComponents <- predict(princ, newdata=pmatrix)[,1:nComp]
+summary(princ)
+dfEvaluate <- cbind(as.data.frame(dfComponents),
+                    cluster = df$converted_in_7days)
+head(dfEvaluate)
+
+EvaluateAUC(dfEvaluate)
+"Mean Error: 6.35769033642851e-05"
+"Mean AUC: 1"
+
+nComp <- 2  # 0.99
+dfComponents <- predict(princ, newdata=pmatrix)[,1:nComp]
+summary(princ)
+dfEvaluate <- cbind(as.data.frame(dfComponents),
+                    cluster = df$converted_in_7days)
+head(dfEvaluate)
+
+EvaluateAUC(dfEvaluate)
+
+"Mean Error: 6.35769033642851e-05"
+"Mean AUC: 0.99988106348739"
+
+nComp <- 5  # 0.99
+dfComponents <- predict(princ, newdata=pmatrix)[,1:nComp]
+summary(princ)
+dfEvaluate <- cbind(as.data.frame(dfComponents),
+                    cluster = df$converted_in_7days)
+head(dfEvaluate)
+
+EvaluateAUC(dfEvaluate)
+
+"Mean Error: 6.35769033642851e-05"
+"Mean AUC: 0.99988106348739"
+
+nComp <- 100  # 0.99
+#dfComponents <- predict(princ, newdata=pmatrix)[,1:nComp]
+summary(princ)
+dfEvaluate <- cbind(as.data.frame(dfComponents),
+                    cluster = df$converted_in_7days)
+head(dfEvaluate)
+
+EvaluateAUC(dfEvaluate)
+
+#############################################################
+
+
+
+# Data Partition
+df <- df %>% dplyr::select(air_purifier_page_top,checkout_page_top,contactus_top,customer_service_amc_login_top,customer_service_request_login_top,demo_page_top,offer_page_top,security_solutions_page_top,sessionDuration,sessionDuration_hist,storelocator_top,successbookdemo_top,vacuum_cleaner_page_top,water_purifier_page_top,converted_in_7days)
+
+
+impute = mice(data = df, m = 3, method = "pmm", seed = 123)
+impute$imp$sessionDuration_hist
+complete(impute, 2)
+df = complete(impute, 2)
+sum(is.na(df))
+
+#df$converted_in_7days <- factor(df$converted_in_7days, c('2','3'),labels =c(1,1))
+str(df)
+summary(df)
+
+
+
+library(caTools)
+df$converted_in_7days <- factor(df$converted_in_7days)
+split <- sample.split(df$converted_in_7days, SplitRatio=0.8)
+train <- subset(df, split==TRUE)
+test = subset(df, split==FALSE)
+
+treeimb <- rpart(converted_in_7days ~ ., data = train)
+pred.treeimb <- predict(treeimb, newdata = test)
+pred.treeimb = ifelse(pred.treeimb>0.5,1,0)
+
+accuracy.meas(test$converted_in_7days, pred.treeimb[,2])
+roc.curve(test$converted_in_7days, pred.treeimb[,2], plotit = F)
+#Area under the curve (AUC): 0.500
+
+
+
+table(train$converted_in_7days)
+prop.table(table(train$converted_in_7days))
+summary(df)
+
+# prediction model ( random Forest)
+library(randomForest)
+#memory.limit(50000000000)
+#rftrain <- randomForest(converted_in_7days ~ ., 
+ #                       data = train)
+
+
+
+table(df$converted_in_7days)
+prop.table(table(df$converted_in_7days))
+#over sampling
+over <- ovun.sample(converted_in_7days ~ .,
+                    data = train, 
+                    method = "over",
+                    N = 1412994)$data
+
+
+under <- ovun.sample(converted_in_7days ~ ., 
+                     data = train, 
+                     method = "under",
+                     N = 5660)$data
+
+both <- ovun.sample(converted_in_7days ~ ., 
+                    data = train, 
+                    method = "both",
+                    N=100000)$data
+
+smote <- ROSE(converted_in_7days ~.,
+              data = train,
+              N = 100000,
+              seed=111)$data
+
+
+"Under Sample"
+
+library(randomForest)
+set.seed(222)
+rf_under <- randomForest(converted_in_7days ~ . ,data = under)
+print(rf_under)
+
+saveRDS(rf_under, "rf_under.rds")
+
+
+library(caret)
+
+# # Prediction & Confusion Matrix - test data
+p2 <- predict(rf_under, test)
+confusion_matrix_under <- confusionMatrix(p2, test$converted_in_7days)
+confusion_matrix_under #specificity is just 0.39
+saveRDS(confusion_matrix_under,"confusion_matrix_under.rds")
+
+# Error rate of Random Forest
+plot(rf_under)
+
+# Tune mtry
+t <- tuneRF(under[,-15], under[,15],
+            stepFactor = 0.5,
+            plot = TRUE,
+            ntreeTry = 300,
+            trace = TRUE,
+            improve = 0.05)
+
+# No. of nodes for the trees
+hist(treesize(rf_under),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varImpPlot_under <- varImpPlot(rf_under,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+importance(rf_under)
+varUsed(rf_under)
+
+saveRDS(varImpPlot_under, "varImpPlot_under.rds")
+
+# ROC and AUC
+
+#Logistic Regression Model
+library(nnet)
+mymodel <- multinom(converted_in_7days~.,data=under)
+
+#without any model, what would be accuracy
+table(under$converted_in_7days)
+
+#Model Performance Evaluation 
+library(ROCR)
+pred <- predict(mymodel,under,type='prob')
+head(pred) 
+head(under$converted_in_7days)
+hist(pred)
+pred <- prediction (pred,under$converted_in_7days)
+eval <- performance(pred,"acc")
+plot(eval)
+
+#Manually calculate the peak
+abline(h=0.63, v=0.38)
+
+#identify best accuracy
+max<- which.max(slot(eval,"y.values")[[1]])
+max
+y <- slot(eval,"y.values")[[1]][max]
+y
+#y maximum value = 0.5854925
+x <- slot(eval,"x.values")[[1]][max]
+x
+# x maximum value = 0.4971908
+print(c(Y=y,X=x))
+
+#ROC curve ( receiver operating characteristic )
+roc <- performance(pred,"tpr","fpr")
+plot(roc, colorize=T, main="ROC Curve")
+abline(a=0,b=1)
+
+#AUC ( Area Under the Curve)
+auc <- performance(pred,"auc")
+auc <- unlist(slot(auc,"y.values"))
+auc
+#AUC = 0.6516969
+auc <- round(auc,4)
+auc
+#AUC = 0.6517
+
+"smote Sample"
+
+library(randomForest)
+set.seed(222)
+rf_smote <- randomForest(converted_in_7days~., data = smote)
+print(rf_smote)
+
+saveRDS(rf_smote,"rf_smote.rds")
+
+
+library(caret)
+
+# # Prediction & Confusion Matrix - test data
+p2 <- predict(rf_smote, test)
+confusionmatrix_smote <- confusionMatrix(p2, test$converted_in_7days)
+confusionmatrix_smote #specificity is 0.04 too less 
+saveRDS(confusionmatrix_smote,"confusionmatrix.rds")
+# Error rate of Random Forest
+plot(rf_smote)
+
+# Tune mtry
+t_smote <- tuneRF(smote[,-15], smote[,15],
+            stepFactor = 0.5,
+            plot = TRUE,
+            ntreeTry = 300,
+            trace = TRUE,
+            improve = 0.05)
+
+saveRDS(t_smote,"t_smote.rds")
+
+# No. of nodes for the trees
+hist(treesize(rf_smote),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varimp_smote <- varImpPlot(rf_smote,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+
+saveRDS(varimp_smote,"varimp_smote.rds")
+importance(rf_smote)
+varUsed(rf_smote)
+
+
+# ROC and AUC
+
+#Logistic Regression Model
+library(nnet)
+mymodel <- multinom(converted_in_7days~.,data=smote)
+
+#without any model, what would be accuracy
+table(test$converted_in_7days)
+# 50% accuracy withoug any data modeling
+
+#Model Performance Evaluation 
+library(ROCR)
+pred <- predict(mymodel,test,type='prob')
+head(pred) 
+head(test$converted_in_7days)
+hist(pred)
+pred <- prediction (pred,test$converted_in_7days)
+eval <- performance(pred,"acc")
+plot(eval)
+
+#Manually calculate the peak
+abline(h=0.595, v=0.52)
+
+#identify best accuracy
+max<- which.max(slot(eval,"y.values")[[1]])
+max
+y <- slot(eval,"y.values")[[1]][max]
+y
+#y maximum value = 0.5854925
+x <- slot(eval,"x.values")[[1]][max]
+x
+# x maximum value = 0.4971908
+print(c(Y=y,X=x))
+
+#ROC curve ( receiver operating characteristic )
+roc <- performance(pred,"tpr","fpr")
+plot(roc, colorize=T, main="ROC Curve")
+abline(a=0,b=1)
+
+#AUC ( Area Under the Curve)
+auc <- performance(pred,"auc")
+auc <- unlist(slot(auc,"y.values"))
+auc
+#AUC = 0.6402411
+auc <- round(auc,4)
+auc
+#AUC = 0.6402
+
+
+"both sample"
+
+library(randomForest)
+set.seed(222)
+rf_both <- randomForest(converted_in_7days ~ . ,
+                   data = both)
+print(rf_both)
+saveRDS(rf_both, "rf_both.rds")
+
+
+library(caret)
+
+# # Prediction & Confusion Matrix - test data
+p2 <- predict(rf_both, test)
+confusion_matrix_both <- confusionMatrix(p2, test$converted_in_7days)
+confusion_matrix_both # just 0.50 specificity, as good as flip of coin.
+saveRDS(confusion_matrix_both,"confusion_matrix_under.both")
+
+# Error rate of Random Forest
+plot(rf_both)
+
+# Tune mtry
+t_both <- tuneRF(both[,-15], both[,15],
+            stepFactor = 0.5,
+            plot = TRUE,
+            ntreeTry = 300,
+            trace = TRUE,
+            improve = 0.05)
+
+saveRDS(t_both, "t_both.rds")
+
+# No. of nodes for the trees
+hist(treesize(rf_both),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varImpPlot_both <- varImpPlot(rf,
+                         sort = T,
+                         n.var = 10,
+                         main = "Top 10 - Variable Importance")
+importance(rf_both)
+varUsed(rf_both)
+
+saveRDS(varImpPlot_both, "varImpPlot_both.rds")
+
+# ROC and AUC
+
+#Logistic Regression Model
+library(nnet)
+mymodel <- multinom(converted_in_7days~.,data=both)
+
+#without any model, what would be accuracy
+table(under$converted_in_7days)
+
+#Model Performance Evaluation 
+library(ROCR)
+pred <- predict(mymodel,both,type='prob')
+head(pred) 
+head(both$converted_in_7days)
+hist(pred)
+pred <- prediction (pred,both$converted_in_7days)
+eval <- performance(pred,"acc")
+plot(eval)
+
+#Manually calculate the peak
+abline(h=0.615, v=0.48)
+
+#identify best accuracy
+max<- which.max(slot(eval,"y.values")[[1]])
+max
+y <- slot(eval,"y.values")[[1]][max]
+y
+#y maximum value = 0.5854925
+x <- slot(eval,"x.values")[[1]][max]
+x
+# x maximum value = 0.4971908
+print(c(Y=y,X=x))
+
+#ROC curve ( receiver operating characteristic )
+roc <- performance(pred,"tpr","fpr")
+plot(roc, colorize=T, main="ROC Curve")
+abline(a=0,b=1)
+
+#AUC ( Area Under the Curve)
+auc <- performance(pred,"auc")
+auc <- unlist(slot(auc,"y.values"))
+auc
+#AUC =  0.653157
+auc <- round(auc,4)
+auc
+#AUC = 0.6532
+
+
+# Tuning the Random Forest model by varying values of hyperparameters
+set.seed(123)
+NewData <- sample_n(under,5660)%>% as_tibble() 
+str(NewData)
+# define task and learner ----------------------
+library(mlr)
+defTaskrf <- makeClassifTask(data = NewData,target = "converted_in_7days")
+
+rf <- makeLearner("classif.randomForest",predict.type = "response")
+
+
+# define hyperparameter search space ----------------------
+getParamSet("classif.randomForest")
+paramSpacerf <- makeParamSet( makeIntegerParam("mtry", lower = 1, upper = 15),
+                              makeIntegerParam("ntree", lower = 250, upper = 2500),
+                              makeIntegerParam("nodesize", lower = 4, upper = 80))
+
+# Define search procedure ----------------------
+randSearchrf <- makeTuneControlIrace(maxExperiments = 100)
+
+# Define nested cross-validation ----------------------
+innerrf <- makeResampleDesc("Holdout",split = 0.8)
+outerrf <- makeResampleDesc("CV",iters = 3)
+
+# Define wrapper for learner and tuning ---------------
+rfWrapper <- makeTuneWrapper(learner = rf, resampling = innerrf, 
+                             par.set = paramSpacerf, control = randSearchrf)
+
+# Run Cross Validation --------------------------------
+cvWtihTuningrf <- resample(learner = rfWrapper, task = defTaskrf, 
+                           resampling = outerrf, models = T)
+'Result: mtry=2; ntree=894; nodesize=51 : mmce.test.mean=0.3302428
+[Resample] iter 3:    0.3269740'
+cvWtihTuningrf$measures.test
+
+'iter      mmce
+1    1 0.3169051
+2    2 0.3510074
+3    3 0.3269740'
+# Train model using all data --------------------------
+tunedParsrf <-tuneParams(learner = rf,
+                         task = defTaskrf,
+                         resampling = innerrf,
+                         par.set = paramSpacerf,
+                         control = randSearchrf)
+'Result: mtry=3; ntree=1734; nodesize=54 : mmce.test.mean=0.3671818'
+tunedParsrf
+'Result: mtry=3; ntree=2476; nodesize=72 : mmce.test.mean=0.3249117'
+# Tuned model with hyperparameters
+# Step 5
+set.seed(123)
+regressor_rf_t = randomForest(converted_in_7days ~.,
+                              data = under,
+                              mtry = 3, 
+                              ntree = 2476,
+                              nodesize = 72)
+print(regressor_rf_t)
+
+'Confusion matrix:
+     0   1 class.error
+0 2877 519   0.1528269
+1 1323 941   0.5843640'
+# Step 6
+# Using the regression model, predict MEDV for test set
+Converted_predict_rf_t = predict(regressor_rf_t, newdata=test)
+
+# Step 7
+# Calculate Accuracy - AUC
+
+
+
+#variable importance
+varImpPlot(regressor_rf_t)
+varImpPlot(regressor_rf_t,
+           sort = T,
+           main = "Variable Importance")
+importance(regressor_rf_t)
+varUsed(regressor_rf_t)
+
+# Extract Single Tree
+randomForest::getTree(regressor_rf_t, 2, labelVar = TRUE)
+
+prob_pred_Converted = predict(regressor_rf_t, newdata = test[-15], type='p')
+pred_Converted = predict(prob_pred_Converted, newdata = test[-15], type='class')
+
+prob_pred_Converted <- as_tibble (prob_pred_Converted)
+# install.packages('e1071')
+library(caret)
+
+confusionMatrix(pred_Converted, test[, 4])
+# plot ROC
+# install.packages('ROCR')
+# install.packages('Metrics')
+library(ROCR)
+library(Metrics)
+
+
+pr = prediction(as.numeric(pred_Converted), test[  ,4])
+
+perf = performance(pr, measure = 'tpr',x.measure = 'fpr')
+plot(perf)
+
+auc(test[, 4], pred_Converted)
+
+# Plotting the tree
+plot(classifier)
+print(classifier)
+
+####################
+
+# tuning " Both"
+
+
+# Tuning the Random Forest model by varying values of hyperparameters
+set.seed(123)
+NewData <- sample_n(both,100000)%>% as_tibble() 
+str(NewData)
+# define task and learner ----------------------
+library(mlr)
+defTaskrf <- makeClassifTask(data = NewData,target = "converted_in_7days")
+
+rf <- makeLearner("classif.randomForest",predict.type = "response")
+
+
+# define hyperparameter search space ----------------------
+getParamSet("classif.randomForest")
+paramSpacerf <- makeParamSet( makeIntegerParam("mtry", lower = 1, upper = 15),
+                              makeIntegerParam("ntree", lower = 250, upper = 2500),
+                              makeIntegerParam("nodesize", lower = 4, upper = 80))
+
+# Define search procedure ----------------------
+randSearchrf <- makeTuneControlIrace(maxExperiments = 100)
+
+# Define nested cross-validation ----------------------
+innerrf <- makeResampleDesc("Holdout",split = 0.8)
+outerrf <- makeResampleDesc("CV",iters = 3)
+
+# Define wrapper for learner and tuning ---------------
+rfWrapper <- makeTuneWrapper(learner = rf, resampling = innerrf, 
+                             par.set = paramSpacerf, control = randSearchrf)
+
+# Run Cross Validation --------------------------------
+cvWtihTuningrf <- resample(learner = rfWrapper, task = defTaskrf, 
+                           resampling = outerrf, models = T)
+'Result: mtry=2; ntree=894; nodesize=51 : mmce.test.mean=0.3302428
+[Resample] iter 3:    0.3269740'
+cvWtihTuningrf$measures.test
+
+'iter      mmce
+1    1 0.3169051
+2    2 0.3510074
+3    3 0.3269740'
+# Train model using all data --------------------------
+tunedParsrf <-tuneParams(learner = rf,
+                         task = defTaskrf,
+                         resampling = innerrf,
+                         par.set = paramSpacerf,
+                         control = randSearchrf)
+'Result: mtry=3; ntree=1734; nodesize=54 : mmce.test.mean=0.3671818'
+tunedParsrf
+'Result: mtry=3; ntree=2476; nodesize=72 : mmce.test.mean=0.3249117'
+# Tuned model with hyperparameters
+# Step 5
+set.seed(123)
+regressor_rf_t = randomForest(converted_in_7days ~.,
+                              data = under,
+                              mtry = 3, 
+                              ntree = 2476,
+                              nodesize = 72)
+print(regressor_rf_t)
+
+'Confusion matrix:
+     0   1 class.error
+0 2877 519   0.1528269
+1 1323 941   0.5843640'
+# Step 6
+# Using the regression model, predict MEDV for test set
+Converted_predict_rf_t = predict(regressor_rf_t, newdata=test)
+
+# Step 7
+# Calculate Accuracy - AUC
+
+
+
+#variable importance
+varImpPlot(regressor_rf_t)
+varImpPlot(regressor_rf_t,
+           sort = T,
+           main = "Variable Importance")
+importance(regressor_rf_t)
+varUsed(regressor_rf_t)
+
+# Extract Single Tree
+randomForest::getTree(regressor_rf_t, 2, labelVar = TRUE)
+
+prob_pred_Converted = predict(regressor_rf_t, newdata = test[-15], type='p')
+pred_Converted = predict(prob_pred_Converted, newdata = test[-15], type='class')
+
+prob_pred_Converted <- as_tibble (prob_pred_Converted)
+# install.packages('e1071')
+library(caret)
+
+confusionMatrix(pred_Converted, test[, 4])
+# plot ROC
+# install.packages('ROCR')
+# install.packages('Metrics')
+library(ROCR)
+library(Metrics)
+
+
+pr = prediction(as.numeric(pred_Converted), test[  ,4])
+
+perf = performance(pr, measure = 'tpr',x.measure = 'fpr')
+plot(perf)
+
+auc(test[, 4], pred_Converted)
+
+# Plotting the tree
+plot(classifier)
+print(classifier)
+
+
+#run SVM with different kernels ----------------------
+  
+  
+  # Method1: manually check every kernels  --------------
+
+library(e1071)
+classifier = svm(formula = cluster ~ .,
+                 data = under,
+                 type = 'C-classification',
+                 kernel = 'polynomial')
+summary(classifier)
+
+
+
+# Method2: use MLR package for automatic calcu --------
+
+
+#install.packages('mlr')
+library(mlr)
+library(tidyverse)
+library(kernlab)
+# load dataset ----------------------------------------
+
+#install.packages('kernlab')
+data(data_nomiss,package = 'kernlab')
+head(data_nomiss)
+dim(data_nomiss)
+data_nomiss <- sample_n(under,4528)%>% as_tibble() 
+data_nomiss
+glimpse(data_nomiss)
+table(data_nomiss$cluster)
+
+# define task and learner -----------------------------
+
+defTask <- makeClassifTask(data = data_nomiss, target = "cluster")
+
+svm <- makeLearner("classif.svm", predict.type = "prob")
+
+# define hyperparameter search space ------------------
+
+getParamSet("classif.svm")
+
+kernels <- c("polynomial","radial","sigmoid")
+svmPramSpace <- makeParamSet(
+  makeDiscreteParam("kernel",values = kernels),
+  makeIntegerParam("degree", lower = 1, upper = 3),
+  makeNumericParam("cost", lower = 5, upper = 20),
+  makeNumericParam("gamma", lower = 0, upper = 2)
+)
+
+# Define search procedure -----------------------------
+#makeTuneControlIrace()
+
+randSearch <- makeTuneControlRandom(maxit = 20)
+
+
+# Define nested cross-validation ----------------------
+
+inner <- makeResampleDesc("Holdout",split = 0.8)
+outer <- makeResampleDesc("CV",iters = 3)
+# learn this when you have time :"LOO", "RepCV", "subSample
+
+
+# Define wrapper for learner and tuning ---------------
+
+
+svmWrapper <- makeTuneWrapper(
+  learner = svm,
+  resampling = inner,
+  par.set = svmPramSpace,
+  control = randSearch
+)
+
+# Run Cross Validation --------------------------------
+
+
+cvWtihTuning <- resample(learner = svmWrapper,
+                         task = defTask,
+                         resampling = outer,
+                         models = TRUE)
+"Result: kernel=radial; degree=3; cost=12.3; gamma=0.469 : mmce.test.mean=0.4089404
+[Resample] iter 3:    0.3896620 
+
+
+Aggregated Result: mmce.test.mean=0.3981870"
+
+#mmce = mean mis classification error
+
+
+cvWtihTuning$measures.test
+
+
+# Train model using all data --------------------------
+
+
+tunedSvmPars <-tuneParams(learner = svm,
+                          task = defTask,
+                          resampling = inner,
+                          par.set = svmPramSpace,
+                          control = randSearch)
+tunedSvmPars
+'Tune result:
+  Op. pars: kernel=radial; degree=2; cost=6.97; gamma=0.842
+mmce.test.mean=0.4028698'
+
+tunedSvm <- setHyperPars(svm,par.vals = tunedSvmPars$x)
+tunedSvmModel <- mlr::train(tunedSvm,defTask) 
+
+predict(tunedSvmModel, newdata = data_nomiss)
+
+#############################################
+
+
+library(adabag)
+library(rpart.plot)
+library(party)
+library(pROC)
+library(gbm)
+library(ada)
+library(xgboost)
+
+write.csv(under,"under.csv")
+data <- read.csv("under.csv", header = T)
+
+# Data Preparation
+data$converted_in_7days <- ifelse(data$converted_in_7days == 1, 'Buy', 'Not Buy')
+data$converted_in_7days <- as.factor(data$converted_in_7days)
+str(data)
+table(data$converted_in_7days)
+
+# Data Partition
+set.seed(123)
+ind <- sample(2, nrow(data), replace = T, prob = c(0.8, 0.2))
+train <- data[ind==1,]
+test <- data[ind==2,]
+
+# Tree
+set.seed(222)
+tree <- rpart(converted_in_7days~. , data = train)
+rpart.plot(tree,type = 5)
+modelLookup("rpart")
+
+p <- predict(tree, newdata = test, type = 'class')
+(tab <- table(Predicted = p, Actual = test$converted_in_7days))
+100*sum(diag(tab))/sum(tab)  
+
+# ROC
+p <- predict(tree,newdata=test,type="prob")
+roc <- roc(test$converted_in_7days,p[,1])
+plot(roc, col= c(2))
+auc(roc)
+
+# Tree with CV
+set.seed(1234) 
+cvcontrol <- trainControl(method="repeatedcv",  
+                          number = 5,
+                          repeats = 5,
+                          allowParallel=TRUE)
+tree <- train(converted_in_7days ~ ., 
+              data=under,
+              method="rpart",  
+              trControl=cvcontrol,
+              tuneLength = 10)  
+tree
+saveRDS(tree,"tree.rds")
+"  cp            Accuracy   Kappa    
+  0.0009717314  0.6564684  0.2508940
+  0.0010600707  0.6569983  0.2520021
+  0.0011042403  0.6574578  0.2522511
+  0.0011484099  0.6616619  0.2589083
+  0.0011778563  0.6616619  0.2589083
+  0.0015459364  0.6663970  0.2651652
+  0.0022084806  0.6660080  0.2602903
+  0.0033127208  0.6686229  0.2610700
+  0.0388692580  0.6626168  0.2390741
+  0.0768551237  0.6258313  0.1062852"
+p <-  predict(tree, newdata = test,type="raw")
+confusionMatrix(p, test$converted_in_7days)
+p <- predict(tree,newdata=test,type="prob")
+roc <- roc(test$converted_in_7days,p[,1])
+plot(roc,col=c(2))
+auc(roc)
+
+# Bagging
+set.seed(1234)
+bag <- train(converted_in_7days ~ ., 
+             data=train,
+             method="treebag",
+             trControl=cvcontrol,
+             importance=TRUE)
+p <-  predict(bag, newdata = test, type="raw")
+confusionMatrix(p,test$converted_in_7days)
+"        Reference
+Prediction Buy Not Buy
+   Buy     441       1
+   Not Buy   0     682"
+p <- predict(bag,newdata=test,type="prob")
+roc1 <- roc(test$converted_in_7days,p[,1])
+plot(roc,col=c(2), main = 'ROC Curve with Test Data')
+auc(roc1)
+
+# Boosting
+set.seed(1234)
+boo <- train(converted_in_7days ~ ., 
+             data=train,
+             method="xgbTree",   
+             trControl=cvcontrol,
+             tuneGrid = expand.grid(nrounds = 500,
+                                    max_depth = 2,
+                                    eta = 0.3,
+                                    gamma = 0.01,
+                                    colsample_bytree = 1,
+                                    min_child_weight = 1,
+                                    subsample = 1))
+saveRDS(boo,"boo.rds")
+
+p <-  predict(boo, newdata = test, type="raw")
+confusionMatrix(p,test$converted_in_7days)
+p <- predict(boo,newdata=test,type="prob")
+roc2 <- roc(test$converted_in_7days,p[,1])
+plot(roc2,col=c(4), main = 'ROC Curve with Test Data')
+plot(roc,add = T, col=c(2))
+plot(roc1,add = T, col=c(3))
+legend(x = "bottomright", 
+       legend = c("Tree", "Bagged Trees", "Boosted Trees"),
+       fill = c(2,3, 4),
+       cex = 2)
+auc(roc2)
+#0.99
