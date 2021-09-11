@@ -1,0 +1,1034 @@
+library(dplyr)
+library(caret)
+library(ggplot2)
+library(corrplot)
+library(tibble)
+library(nnet)
+library(mlbench)
+library(randomForest)
+library(nnet)
+library(stargazer)
+library(party)
+library(e1071)
+library(kernlab)
+library(scales)
+library(class)
+library(psych)
+library(knitr)
+library(expss)
+library(reshape2)
+library(pROC)
+library(MASS)
+library(naniar)
+library(mice)
+library(VIM)
+library(Boruta)
+library(mlbench)
+library(caret)
+library(randomForest)
+library(Hmisc)
+library(rpart)
+library(caTools)
+library(HandTill2001)
+
+
+setwd("C:/Users/gyana/OneDrive/Documents/R/WB/AIPM/mod5/Case2")
+df <- read.csv("Training.csv", header = T, stringsAsFactors = F)
+df$target <-
+  plyr::revalue(as.character(df$target),
+                c("0" = "cold",
+                  "1" = "cold",
+                  "2" = "warm",
+                  "3" = "warm",
+                  "4" = "hot",
+                  "5" = "hot")) %>%
+  as.factor()
+  
+
+  
+table(df$target)
+prop.table(table(df$target))
+
+
+'All the ordinal variables of the dataset cars are characteristic, except for the target variable symboling. All these variables should be transformed to factors, we will do that with the function as.factor().
+
+Additionaly, integer encoding will be applied, this type of one-hot encoding transforms the characteristic features to numbers, without loosing any information, or having any impact in the final results. In large datasets like this one this step is important, in order to use less memory when saving the files. Aaprt from that, it is important for some models which are only able to manage numeric variables, in case of saving these as numeric.
+
+Firstly, the characteristic variables will be converted to factors for the models that are not sensible to data distribution, but after will be transformed to numeric for the models sensible to data distribution.
+
+After applying as.factor(), we should check that there is not any character'
+
+any(sapply(df, is.character)) %>% 
+  knitr::knit_print()
+
+'the result says TRUE which means we need to find other characters and changd it into factors.'
+
+str(df[1:50])
+str(df[51:100])
+str(df[101:150])
+str(df[151:200])
+str(df[201:250])
+str(df[251:300])
+str(df[301:350])
+str(df[351:400])
+str(df[401:450])
+str(df[451:500])
+str(df[501:550])
+str(df[551:600])
+str(df[601:650])
+str(df[651:700])
+str(df[701:707])
+#Encoding and converting in factors
+df$db_industry <- as.factor(df$db_industry)
+df$db_city <- as.factor(df$db_city)
+df$db_companyname <- as.factor(df$db_companyname)
+df$db_country <- as.factor(df$db_country)
+df$db_state <- as.factor(df$db_state)
+df$db_employeerange <- as.factor(df$db_employeerange)
+df$db_accountwatch <- as.factor(df$db_accountwatch)
+df$db_subindustry <- as.factor(df$db_subindustry)
+df$iso_country_dunssite <- as.factor(df$iso_country_dunssite)
+df$geo_dunssite <- as.factor(df$geo_dunssite)
+df$sic_2_description <- as.factor(df$sic_2_description)
+df$sic_4_description <- as.factor(df$sic_4_description)
+df$gu_city <- as.factor(df$gu_city)
+df$gu_state <- as.factor(df$gu_state)
+df$gu_iso_country_name <- as.factor(df$gu_iso_country_name)
+df$gu_country_region <- as.factor(df$gu_country_region)
+df$gu_country_geo <- as.factor(df$gu_country_geo)
+df$final_vertical_gu <- as.factor(df$final_vertical_gu)
+df$gu_sic_2_description <- as.factor(df$gu_sic_2_description)
+df$gu_sic_4_description <- as.factor(df$gu_sic_4_description)
+df$gu_emp_segment <- as.factor(df$gu_emp_segment)
+df$gu_emp_segment_desc <- as.factor(df$gu_emp_segment_desc)
+df$idc_verticals <- as.factor(df$idc_verticals)
+df$new_segment <- as.factor(df$new_segment)
+df$hyperthreading_active_flag <- as.factor(df$hyperthreading_active_flag)
+df$hv_replay_capable_flag <- as.factor(df$hv_replay_capable_flag)
+df$ftr_first_date_hol_page_view <- as.factor(df$ftr_first_date_hol_page_view)
+df$ftr_first_date_eval_page_view <- as.factor(df$ftr_first_date_eval_page_view)
+df$ftr_first_date_seminar_page_view <- as.factor(df$ftr_first_date_seminar_page_view)
+df$ftr_first_date_webinar_page_view <- as.factor(df$ftr_first_date_webinar_page_view)
+df$ftr_first_date_whitepaper_download <- as.factor(df$ftr_first_date_whitepaper_download)
+df$ftr_first_date_any_download <- as.factor(df$ftr_first_date_any_download)
+df$target <- as.factor(df$target)
+df$db_audience <- as.factor(df$db_audience)
+df$gu_ind_vmw_major_lookup <- as.factor(df$gu_ind_vmw_major_lookup)
+df$gu_ind_vmw_sub_category <- as.factor(df$gu_ind_vmw_sub_category)
+df$final_vertical_dunssite <- as.factor(df$final_vertical_dunssite)
+df$geo_dunssite <- as.factor(df$geo_dunssite)
+df$region_dunssite <-as.factor(df$region_dunssite)
+
+#checking again
+any(sapply(df, is.character)) %>% 
+  knitr::knit_print()
+
+# no more character variable so I can proceed further.
+
+#Scaling the data
+'There are many numeric variables with different scale, and this can be a problem for the algorithms that are based on euclidean distance.
+
+Caret package gives the posibility to apply preProcess to scale the data when training the model. However, in our case we will scale the data before, because some algorithms are applied from other different packages.
+
+The type of selected scale is range, it scales the numeric data in the interval [0, 1], but not the factors.'
+
+df_preProces <-
+  preProcess(df, method = c("range"))
+df <- predict(df_preProces,
+                df)
+
+#NZV ----
+nzv <- nearZeroVar(df, saveMetrics = TRUE)
+head(nzv)
+range(nzv$percentUnique)
+range(nzv$freqRatio)
+# how many have no variation at all
+print(length(nzv[nzv$zeroVar==T,]))
+
+print(paste('Column count before cutoff:',ncol(nzv)))
+
+# how many have less than 0.1 percent variance
+dim(nzv[nzv$percentUnique > 5,])
+dim(nzv[nzv$nzv==T,])
+dim(nzv[nzv$zeroVar ==T,])
+#dim(nzv[nzv$freqRatio ==T,])
+
+# remove zero & near-zero variance from original data set
+#df_nzv <- cars[c(rownames(nzv[nzv$nzv ==T,])) ]
+df_nzv <- df[c(rownames(nzv[nzv$percentUnique > 5,])) ]
+#df_nzv <- cars[c(rownames(nzv[nzv$zeroVar == T,])) ]
+
+print(paste('Column count after cutoff:',ncol(df_nzv)))
+
+summary(df_nzv)
+'3 columns i.e gu_ind_vmw_major_lookup,gu_ind_vmw_sub_category and ftr_first_date_seminar_page_view have no value hence deleting these as well.
+'
+
+any(is.na(df_nzv)) %>% 
+  knitr::knit_print()
+
+'Now there is no missing values so I can move forward'
+
+df <- cbind(as.data.frame(sapply(df_nzv, as.numeric)),cluster = df$target)
+any(is.na(df)) %>% 
+  knitr::knit_print()
+
+
+#Data Partition
+'We are ready to divide the data in two samples, train and test. The train sample is used to train the model, and the test sample is used to make the prediction and verify the performance of the model.
+
+The data will be divided in 80% training, and 20% test, with the help of the function createDataPartition of the caret package:'
+
+impute = mice(df, m = 3, defaultMethod = c("pmm","logreg","polyreg","polr"), maxit = 5, seed = 123)
+
+impute$imp$db_annualsales
+impute$imp$total_bookings_amount
+complete(impute, 2)
+df = complete(impute, 2)
+sum(is.na(df))
+
+
+set.seed(16)
+df_which_train <-
+  createDataPartition(df$cluster,
+                      p = 0.8, 
+                      list = FALSE)
+
+#Training data
+
+df_train <- df[df_which_train,]
+
+
+#Test data
+df_test <- df[-df_which_train,]
+
+#For the modesl sensible to data distribution:
+
+'There are some models sensible to data distribution based on euclidean distance.
+
+In our dataset there are many factors and this can be time consuming for some models, hence all these factors will be trasnformed to numeric:'
+
+
+df2 <- df[-41]
+indx <- sapply(df2, is.factor)
+df2[indx] <- lapply(df2[indx], function(x) as.numeric(as.character(x)))
+df2 <- cbind(df2, df[41])
+df_preProces1 <-
+  preProcess(df2, method = c("range"))
+df2 <- predict(df_preProces1,
+                 df2)
+
+set.seed(16)
+df_which_train1 <-
+  createDataPartition(df2$cluster,
+                      p = 0.8, 
+                      list = FALSE)
+
+
+#Training data
+df_train1 <- df2[df_which_train1,]
+
+#Test sample
+df_test1 <- df2[-df_which_train1,]
+
+
+#Features selection:
+'It will be applied only to cars_train sample:'
+
+
+#Relationship with the target variable:
+'Now we will check if the characteristic variables have relationship with the target variable symboling, so we will use the list cars_mult_bin_vars.
+
+In order to be able to check this, we will use ANOVA, with the created function result_aov_pvalue:'
+
+data <- df
+result_aov_pvalue <- function(data, var) {
+  result <- c()
+  for (i in var) {
+    if (summary(aov(data[, 10] ~ data[, i]))[[1]][["Pr(>F)"]][1] < 0.05) {
+      result <-
+        c(result,
+          paste("Reject H0 -", i, "impact in symboling"))
+    }
+    else {
+      result <-
+        c(result,
+          paste("NO reject H0 -", i, "has not impact in symboling"))
+    }
+  }
+  return(result)
+}
+
+
+#Variables with near zero variance:
+'The variables with zero or near zero variance can have negative impact on the final result of the applied algorithm, for this reason is important to be checked.'
+
+df_nzv_stats <- nearZeroVar(df_train,
+                              saveMetrics = TRUE)
+saveRDS(df_nzv_stats, "df_nzv_stats.rds")
+df_nzv_stats
+df_nzv_stats <- readRDS("df_nzv_stats.rds")
+df_nzv_stats_res <- df_nzv_stats %>%
+  rownames_to_column("variable") %>%
+  arrange(-zeroVar, -nzv, -freqRatio)
+df_nzv_stats_res[c(1, 4:5)] %>% 
+  kable(align = "l",digits = 2)
+
+
+df_nzv_unsel <- c(df_nzv_stats_res[1][df_nzv_stats_res[5] == TRUE])
+sort(df_nzv_unsel) %>% 
+  knitr::knit_print()
+
+set.seed(16)
+ctrl_cvnone <- trainControl(method = "none",
+                            sampling = "down")
+df_train$cluster <- as.factor(df_train$cluster)
+
+rank_features_down <-
+  train(
+    cluster ~ .,
+    data = df_train,
+    method = "lvq",
+    trControl = ctrl_cvnone
+  )
+
+saveRDS(rank_features_down, "rank_features_down.rds")
+
+
+set.seed(16)
+ctr2_cvnone_up <- trainControl(method = "none",
+                            sampling = "up")
+df_train$cluster <- as.factor(df_train$cluster)
+
+rank_features_up <-
+  train(
+    cluster ~ .,
+    data = df_train,
+    method = "lvq",
+    trControl = ctrl_cvnone
+  )
+
+saveRDS(rank_features_up, "rank_features_up.rds")
+
+
+
+set.seed(16)
+ctr2_cvnone_both <- trainControl(method = "none",
+                            sampling = "both")
+df_train$cluster <- as.factor(df_train$cluster)
+
+rank_features_both <-
+  train(
+    cluster ~ .,
+    data = df_train,
+    method = "lvq",
+    trControl = ctrl_cvnone
+  )
+
+saveRDS(rank_features_both, "rank_features_both.rds")
+
+
+set.seed(16)
+ctr_cvnone_smote <- trainControl(method = "smote",
+                            sampling = "up")
+df_train$cluster <- as.factor(df_train$cluster)
+
+rank_features_smote <-
+  train(
+    cluster ~ .,
+    data = df_train,
+    method = "lvq",
+    trControl = ctrl_cvnone
+  )
+
+saveRDS(rank_features_smote, "rank_features4.rds")
+
+#ACcuracy
+
+accuracy_multinom <- function(predicted, real) {
+  ctable_m <- table(predicted,
+                    real)
+  accuracy <- (100 * sum(diag(ctable_m)) / sum(ctable_m))
+  base_ <- diag(ctable_m) / colSums(ctable_m)
+  balanced_accuracy <- mean(100 * ifelse(is.na(base_), 0, base_))
+  base_2 <- diag(ctable_m) / rowSums(ctable_m)
+  correctly_predicted <-
+    mean(100 * ifelse(is.na(base_2), 0, base_2))
+  return(
+    data.frame(
+      accuracy = accuracy,
+      balanced_accuracy = balanced_accuracy,
+      balanced_correctly_predicted = correctly_predicted
+    )
+  )
+}
+
+
+#Graph - plot_model_fitted:
+'The function plot_model_fitted returns a ggplot graph of the prediction results, in order to see how the predictors are divided by levels:'
+
+plot_model_fitted <- function(fitt) {
+  require(scales)
+  a <- data.frame(Symboling = fitt)
+  ggplot(a, aes(Symboling)) +
+    geom_bar(fill = "#9F1E42") +
+    theme_minimal() +
+    scale_y_continuous(labels = comma) 
+  
+}
+
+
+#MLR - Multinomial Logistic Regression:
+
+set.seed(16)
+mlr_multinomial <- multinom(cluster ~ .,
+                    data = df_train,
+                    maxit = 1000)
+saveRDS(mlr_multinomial, "mlr_multinomial.rds")
+
+mlr_multinomial
+#Prediction on test sample:
+set.seed(16)
+mlr_multinomial_fitted <- predict(mlr_multinomial,
+                                  df_test)
+saveRDS(mlr_multinomial_fitted, "mlr_multinomial_fitted.rds")
+
+set.seed(16)
+mlr_multinomial_fitted_prob <- predict(mlr_multinomial,
+                                       df_test,
+                                       type= "prob")
+saveRDS(mlr_multinomial_fitted_prob, "mlr_multinomial_fitted_prob.rds")
+
+plot(mlr_multinomial_fitted_prob)
+
+# Result
+set.seed(16)
+mlr_multinomial_sel <- multinom(cluster ~ .,
+                                data = df_train,
+                                maxit = 1000)
+saveRDS(mlr_multinomial_sel, "mlr_multinomial_sel.rds")
+
+mlr_multinomial_sel <- readRDS("mlr_multinomial_sel.rds")
+data.frame(Residual.Deviance = round(mlr_multinomial_sel[["deviance"]], 2), AIC = 
+             round(mlr_multinomial_sel[["AIC"]], 2)) %>%
+  kable(align = "l",digits = 2) 
+
+set.seed(16)
+mlr_multinomial_sel_fitted <- predict(mlr_multinomial_sel,
+                                      df_test)
+saveRDS(mlr_multinomial_sel_fitted, "mlr_multinomial_sel_fitted.rds")
+
+
+set.seed(16)
+mlr_multinomial_sel_fitted_prob <- predict(mlr_multinomial_sel,
+                                           df_test,
+                                           type= "prob")
+saveRDS(mlr_multinomial_sel_fitted_prob, "mlr_multinomial_sel_fitted_prob.rds")
+
+
+impute = mice(df_train, m = 3, defaultMethod = c("pmm","logreg","polyreg","polr"), maxit = 5, seed = 123)
+
+impute$imp$db_annualsales
+impute$imp$total_bookings_amount
+complete(impute, 2)
+df_train = complete(impute, 2)
+sum(is.na(df_train))
+
+
+
+# Feature Selection
+set.seed(111)
+boruta <- Boruta(cluster ~ ., 
+                 data = df_train, 
+                 doTrace = 2, 
+                 maxRuns = 500)
+print(boruta)
+'Boruta performed 499 iterations in 5.638367 hours.
+ 31 attributes confirmed important: channel_oem_total,
+channel_oem_total_pct, channel_partner_total,
+channel_partner_total_pct, channel_support_total and 26 more;
+ 5 attributes confirmed unimportant: db_city, db_companyname,
+gu_city, prodA_ent_plus_booking_pct, X;
+ 4 tentative attributes left: db_annualsales,
+prodA_2013_bookings_amount, prodA_ent_booking_pct,
+prodA_std_booking_pct'
+
+plot(boruta, las = 2, cex.axis = 0.7)
+plotImpHistory(boruta)
+
+# Tentative Fix
+bor <- TentativeRoughFix(boruta)
+print(bor)
+'Boruta performed 499 iterations in 5.638367 hours.
+Tentatives roughfixed over the last 499 iterations.
+ 33 attributes confirmed important: channel_oem_total,
+channel_oem_total_pct, channel_partner_total,
+channel_partner_total_pct, channel_support_total and 28 more;
+ 7 attributes confirmed unimportant: db_annualsales, db_city,
+db_companyname, gu_city, prodA_ent_booking_pct and 2 more;'
+attStats(boruta)
+
+getNonRejectedFormula(boruta)
+
+'cluster ~ db_annualsales + total_prodV_bookings_amount + total_bookings_amount + 
+    total_prodA_std_booking_amount + total_prodA_ent_booking_amount + 
+    total_prodA_booking_amount + prodA_2013_bookings_amount + 
+    prodA_2014_bookings_amount + prodA_2015_bookings_amount + 
+    total_2013_bookings_amount + total_2014_bookings_amount + 
+    total_2015_bookings_amount + total_prodA_5_x_booking_amount + 
+    prodA_5_x_2013_bookings_amount + prodA_5_x_2014_bookings_amount + 
+    total_prodG_booking_amount + sum_num_of_employees + derived_total_employees + 
+    gu_annual_sales_usd + channel_oem_total + channel_web_total + 
+    channel_partner_total + channel_support_total + masked_email + 
+    channel_total + channel_web_total_pct + channel_oem_total_pct + 
+    channel_partner_total_pct + channel_support_total_pct + prodA_booking_pct + 
+    prodA_std_booking_pct + prodA_ent_booking_pct + prodA_5x_booking_pct + 
+    prodG_booking_pct + prodV_booking_pct'
+
+
+df_train <- df_train %>% dplyr::select(db_annualsales,total_prodV_bookings_amount, total_bookings_amount,             total_prodA_std_booking_amount,total_prodA_ent_booking_amount, 
+total_prodA_booking_amount, prodA_2013_bookings_amount, 
+prodA_2014_bookings_amount, prodA_2015_bookings_amount, 
+total_2013_bookings_amount, total_2014_bookings_amount, 
+total_2015_bookings_amount, total_prodA_5_x_booking_amount, 
+prodA_5_x_2013_bookings_amount, prodA_5_x_2014_bookings_amount, 
+total_prodG_booking_amount, sum_num_of_employees, derived_total_employees, gu_annual_sales_usd, channel_oem_total, channel_web_total, channel_partner_total, channel_support_total, masked_email, channel_total,channel_web_total_pct, channel_oem_total_pct, channel_partner_total_pct, channel_support_total_pct, prodA_booking_pct, 
+prodA_std_booking_pct, prodA_ent_booking_pct, prodA_5x_booking_pct, 
+prodG_booking_pct, prodV_booking_pct,cluster)
+
+df_test <- df_test %>% dplyr::select(db_annualsales,total_prodV_bookings_amount, total_bookings_amount,             total_prodA_std_booking_amount,total_prodA_ent_booking_amount, 
+total_prodA_booking_amount, prodA_2013_bookings_amount, 
+prodA_2014_bookings_amount, prodA_2015_bookings_amount, 
+total_2013_bookings_amount, total_2014_bookings_amount, 
+total_2015_bookings_amount, total_prodA_5_x_booking_amount, 
+prodA_5_x_2013_bookings_amount, prodA_5_x_2014_bookings_amount, 
+total_prodG_booking_amount, sum_num_of_employees, derived_total_employees, gu_annual_sales_usd, channel_oem_total, channel_web_total, channel_partner_total, channel_support_total, masked_email, channel_total,channel_web_total_pct, channel_oem_total_pct, channel_partner_total_pct, channel_support_total_pct, prodA_booking_pct, 
+prodA_std_booking_pct, prodA_ent_booking_pct, prodA_5x_booking_pct, 
+prodG_booking_pct, prodV_booking_pct,cluster)
+
+
+impute = mice(df_test, m = 3, defaultMethod = c("pmm","logreg","polyreg","polr"), maxit = 5, seed = 123)
+
+impute$imp$db_annualsales
+impute$imp$total_bookings_amount
+complete(impute, 2)
+df_test = complete(impute, 2)
+sum(is.na(df_test))
+
+
+df <- df %>% dplyr::select(db_annualsales,total_prodV_bookings_amount, total_bookings_amount,             total_prodA_std_booking_amount,total_prodA_ent_booking_amount, 
+                                         total_prodA_booking_amount, prodA_2013_bookings_amount, 
+                                         prodA_2014_bookings_amount, prodA_2015_bookings_amount, 
+                                         total_2013_bookings_amount, total_2014_bookings_amount, 
+                                         total_2015_bookings_amount, total_prodA_5_x_booking_amount, 
+                                         prodA_5_x_2013_bookings_amount, prodA_5_x_2014_bookings_amount, 
+                                         total_prodG_booking_amount, sum_num_of_employees, derived_total_employees, gu_annual_sales_usd, channel_oem_total, channel_web_total, channel_partner_total, channel_support_total, masked_email, channel_total,channel_web_total_pct, channel_oem_total_pct, channel_partner_total_pct, channel_support_total_pct, prodA_booking_pct, 
+                                         prodA_std_booking_pct, prodA_ent_booking_pct, prodA_5x_booking_pct, 
+                                         prodG_booking_pct, prodV_booking_pct,cluster)
+
+
+# corelation matrix 
+
+df1 <- df [ , -36]
+cor <- cor(df1, method = c("pearson", "kendall", "spearman"))
+
+res <- cor(cor)
+round(res, 2)
+
+# ++++++++++++++++++++++++++++
+# flattenCorrMatrix
+# ++++++++++++++++++++++++++++
+# cormat : matrix of the correlation coefficients
+# pmat : matrix of the correlation p-values
+flattenCorrMatrix <- function(cormat, pmat) {
+  ut <- upper.tri(cormat)
+  data.frame(
+    row = rownames(cormat)[row(cormat)[ut]],
+    column = rownames(cormat)[col(cormat)[ut]],
+    cor  =(cormat)[ut],
+    p = pmat[ut]
+  )
+}
+
+res2<-rcorr(as.matrix(df1))
+res2
+flattenCorrMatrix(res2$r, res2$P)
+df_train <- df_train [,-36 ]
+corval <- findCorrelation(cor(as.matrix(df_train)), 
+                          cutoff = 0.70, 
+                          verbose = FALSE, 
+                          names = FALSE, 
+                          exact = ncol(df_train) < 100)
+print(corval)  
+
+highlyCorCol <- colnames(cor)[corval]
+highlyCorCol
+
+# Remove highly correlated variables and create a new dataset
+# data2 introduced
+data2 <- df1[, -which(colnames(df1) %in% highlyCorCol)]
+dim(data2)
+sum(is.na(data2))
+head(data2)
+
+
+df <- df %>% dplyr::select(db_annualsales,             total_prodA_std_booking_amount,total_prodA_ent_booking_amount, 
+total_2013_bookings_amount, total_2014_bookings_amount,total_2015_bookings_amount,prodA_5_x_2013_bookings_amount, prodA_5_x_2014_bookings_amount, total_prodG_booking_amount,  derived_total_employees, gu_annual_sales_usd, channel_oem_total, channel_web_total, masked_email, channel_web_total_pct, channel_oem_total_pct, channel_partner_total_pct, channel_support_total_pct, prodA_booking_pct, 
+prodA_std_booking_pct, prodA_ent_booking_pct, prodA_5x_booking_pct, cluster)
+
+
+sum(is.na(df))
+
+
+df$cluster <-factor(df$cluster, c('cold','warm','hot'),labels = c(1,2,3))
+
+str(df$cluster)
+split <- sample.split(df$cluster, SplitRatio=0.8)
+train <- subset(df, split==TRUE)
+test = subset(df, split==FALSE)
+
+#train <- as.matrix(train)
+treeimb <- rpart(cluster ~ ., data = train)
+pred.treeimb <- predict(treeimb, newdata = test)
+pred.treeimb = ifelse(pred.treeimb>0.5,1,0)
+
+# prediction model ( random Forest)
+library(randomForest)
+#memory.limit(50000000000)
+rftrain <- randomForest(cluster ~ ., 
+                        data = train)
+table(train$cluster)
+library(UBL)
+#over sampling
+over <- RandOverClassif (cluster ~ .,
+                         train,
+                         C.perc = "balance")
+
+under <- RandUnderClassif (cluster ~ .,
+                           train,
+                           C.perc = "balance")
+
+smote <- SmoteClassif (cluster ~.,
+                       train,
+                       C.perc = "balance")
+
+
+# Libraries
+library(Boruta)
+library(mlbench)
+library(caret)
+library(randomForest)
+
+
+# Random Forest
+
+"Under Sample"
+
+library(randomForest)
+set.seed(222)
+rf <- randomForest(cluster~., data = under)
+print(rf)
+
+
+# # Prediction & Confusion Matrix - test data
+p2 <- predict(rf, test)
+confusionMatrix(p2, test$cluster)
+
+' Reference
+Prediction    1    2    3
+         1 8906    0    0
+         2  440    1   38
+         3  543    5   68'
+
+# Error rate of Random Forest
+plot(rf)
+
+# Tune mtry
+t <- tuneRF(under[,-23], under[,23],
+            stepFactor = 0.5,
+            plot = TRUE,
+            ntreeTry = 500,
+            trace = TRUE,
+            improve = 0.05)
+
+# No. of nodes for the trees
+hist(treesize(rf),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+importance(rf)
+varUsed(rf)
+
+
+# ROC and AUC
+
+#Logistic Regression Model
+library(nnet)
+mymodel <- multinom(cluster~.,data=under)
+
+
+#Model Performance Evaluation 
+library(ROCR)
+library(pROC)
+
+prob_under <- predict(mymodel,test[, -23],type ="p")
+predict_under <- predict(mymodel,test[,-23],type ="class")
+confusionMatrix(predict_under, test[,23])
+multiclass.roc(test$cluster,prob_under)
+'         Reference
+Prediction    1    2    3
+         1 8852    0    0
+         2  507    3   50
+         3  530    3   56
+'
+#Multi-class area under the curve: 0.8431
+
+library(HandTill2001)
+aucunder <- HandTill2001::auc(multcap(response = test$cluster,predicted = prob_under))
+
+aucunder
+
+
+"Over Sample"
+
+library(randomForest)
+set.seed(222)
+rf <- randomForest(cluster~., data = over, mtry = 2)
+print(rf)
+
+
+library(caret)
+
+
+# Tune mtry
+t <- tuneRF(over[,-23], over[,23],
+            stepFactor = 0.5,
+            plot = TRUE,
+            ntreeTry = 500,
+            trace = TRUE,
+            improve = 0.05)
+
+# No. of nodes for the trees
+hist(treesize(rf),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+importance(rf)
+varUsed(rf)
+
+
+# ROC and AUC
+
+#Logistic Regression Model
+library(nnet)
+mymodel <- multinom(cluster~.,data=over)
+
+
+#Model Performance Evaluation 
+library(ROCR)
+library(pROC)
+
+prob_over <- predict(mymodel,test[, -23],type ="p")
+predict_over <- predict(mymodel,test[,-23],type ="class")
+confusionMatrix(predict_over, test[,23])
+multiclass.roc(test$cluster,prob_over)
+#Multi-class area under the curve: 0.852
+
+library(HandTill2001)
+aucover <- HandTill2001::auc(multcap(response = test$cluster,predicted = prob_over))
+
+aucover
+
+
+
+"smote Sample"
+
+library(randomForest)
+set.seed(222)
+rf <- randomForest(cluster~., data = smote)
+print(rf)
+
+
+library(caret)
+
+
+# Tune mtry
+t <- tuneRF(smote[,-23], smote[,23],
+            stepFactor = 0.5,
+            plot = TRUE,
+            ntreeTry = 500,
+            trace = TRUE,
+            improve = 0.05)
+
+# No. of nodes for the trees
+hist(treesize(rf),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+importance(rf)
+varUsed(rf)
+
+
+# ROC and AUC
+
+#Logistic Regression Model
+library(nnet)
+mymodel <- multinom(cluster~.,data=smote)
+
+
+#Model Performance Evaluation 
+library(ROCR)
+library(pROC)
+
+prob_smote <- predict(mymodel,test[, -23],type ="p")
+predict_smote <- predict(mymodel,test[,-23],type ="class")
+confusionMatrix(predict_smote, test[,23])
+multiclass.roc(test$cluster,prob_smote)
+#MMulti-class area under the curve: 0.8671
+
+library(HandTill2001)
+aucover <- HandTill2001::auc(multcap(response = test$cluster,predicted = prob_smote))
+
+aucover
+
+# since smote has the highest AUC, i will fine tune smote parameters 
+
+set.seed(123)
+NewData <- sample_n(under,66)%>% as_tibble() 
+str(NewData)
+# define task and learner ----------------------
+library(mlr)
+defTaskrf <- makeClassifTask(data = NewData,target = "cluster")
+
+rf <- makeLearner("classif.randomForest",predict.type = "response")
+
+
+# define hyperparameter search space ----------------------
+getParamSet("classif.randomForest")
+paramSpacerf <- makeParamSet( makeIntegerParam("mtry", lower = 1, upper = 15),
+                              makeIntegerParam("ntree", lower = 250, upper = 2500),
+                              makeIntegerParam("nodesize", lower = 4, upper = 80))
+
+# Define search procedure ----------------------
+randSearchrf <- makeTuneControlIrace(maxExperiments = 100)
+
+# Define nested cross-validation ----------------------
+innerrf <- makeResampleDesc("Holdout",split = 0.8)
+outerrf <- makeResampleDesc("CV",iters = 3)
+
+# Define wrapper for learner and tuning ---------------
+rfWrapper <- makeTuneWrapper(learner = rf, resampling = innerrf, 
+                             par.set = paramSpacerf, control = randSearchrf)
+
+# Run Cross Validation --------------------------------
+cvWtihTuningrf <- resample(learner = rfWrapper, task = defTaskrf, 
+                           resampling = outerrf, models = T)
+cvWtihTuningrf$measures.test
+
+# Train model using all data --------------------------
+tunedParsrf <-tuneParams(learner = rf,
+                         task = defTaskrf,
+                         resampling = innerrf,
+                         par.set = paramSpacerf,
+                         control = randSearchrf)
+tunedParsrf
+'Tune result:
+Op. pars: mtry=15; ntree=1990; nodesize=8
+mmce.test.mean=0.2589286'
+# Tuned model with hyperparameters
+# Step 5
+set.seed(123)
+regressor_rf_t = randomForest(cluster ~., 
+                              data = under,
+                              mtry = 15, 
+                              ntree = 1990,
+                              nodesize = 8)
+print(regressor_rf_t)
+
+# Step 6
+# Using the regression model, predict MEDV for test set
+Converted_predict_rf_t = predict(regressor_rf_t, newdata=test)
+
+# Step 7
+# Calculate Accuracy - AUC
+
+
+
+#variable importance
+varImpPlot(regressor_rf_t)
+varImpPlot(regressor_rf_t,
+           sort = T,
+           main = "Variable Importance")
+importance(regressor_rf_t)
+varUsed(regressor_rf_t)
+
+prob_undr_MLR <- predict(regressor_rf_t,test[, -23],type ="p")
+predict_smote <- predict(regressor_rf_t,test[,-23],type ="class")
+confusionMatrix(predict_smote, test[,23])
+multiclass.roc(test$cluster,prob_smote)
+#MMulti-class area under the curve: 0.8671
+
+library(HandTill2001)
+aucsmote_MLR <- HandTill2001::auc(multcap(response = test$cluster,predicted = prob_smote))
+aucsmote_MLR
+
+##########################################
+
+
+library(mlr)
+library(tidyverse)
+library(kernlab)
+# load dataset ----------------------------------------
+
+#install.packages('kernlab')
+mydata <- smote
+data(mydata,package = 'kernlab')
+head(mydata)
+dim(mydata)
+mydata <- sample_n(mydata,40003)%>% as_tibble() 
+glimpse(mydata)
+table(mydata$cluster)
+
+# define task and learner -----------------------------
+
+defTask <- makeClassifTask(data = mydata, target = "cluster")
+
+svm <- makeLearner("classif.svm", predict.type = "prob")
+
+# define hyperparameter search space ------------------
+
+getParamSet("classif.svm")
+
+kernels <- c("polynomial","radial","sigmoid")
+svmPramSpace <- makeParamSet(
+  makeDiscreteParam("kernel",values = kernels),
+  makeIntegerParam("degree", lower = 1, upper = 3),
+  makeNumericParam("cost", lower = 5, upper = 20),
+  makeNumericParam("gamma", lower = 0, upper = 2)
+)
+
+# Define search procedure -----------------------------
+#makeTuneControlIrace()
+
+randSearch <- makeTuneControlRandom(maxit = 20)
+
+
+# Define nested cross-validation ----------------------
+
+inner <- makeResampleDesc("Holdout",split = 0.8)
+outer <- makeResampleDesc("CV",iters = 3)
+# learn this when you have time :"LOO", "RepCV", "subSample
+
+
+# Define wrapper for learner and tuning ---------------
+
+
+svmWrapper <- makeTuneWrapper(
+  learner = svm,
+  resampling = inner,
+  par.set = svmPramSpace,
+  control = randSearch
+)
+
+# Run Cross Validation --------------------------------
+
+
+cvWtihTuning <- resample(learner = svmWrapper,
+                         task = defTask,
+                         resampling = outer,
+                         models = TRUE)
+#Result: kernel=polynomial; degree=2; cost=8.71; gamma=0.356 : mmce.test.mean=0.1912664
+#[Resample] iter 3:    0.1737762 
+#Aggregated Result: mmce.test.mean=0.1802825
+#mmce = mean mis classification error
+
+
+cvWtihTuning$measures.test
+
+#iter      mmce
+#1    1 0.1905594
+#2    2 0.1765117
+#3    3 0.1737762
+
+# Train model using all data --------------------------
+
+
+tunedSvmPars <-tuneParams(learner = svm,
+                          task = defTask,
+                          resampling = inner,
+                          par.set = svmPramSpace,
+                          control = randSearch)
+tunedSvmPars
+
+#Tune result:
+# Op. pars: kernel=radial; degree=2; cost=17.1; gamma=0.066
+#mmce.test.mean=0.1729761
+
+tunedSvm <- setHyperPars(svm,par.vals = tunedSvmPars$x)
+tunedSvmModel <-train(tunedSvm,defTask)
+
+predict(tunedSvmModel, newdata = mydata)
+
+
+library(e1071)
+classifier_svm_t = svm(formula = Converted ~ .,
+                       data = mydata,
+                       type = 'C-classification',
+                       kernel = 'radial',
+                       degree = 2,
+                       cost = 17.1,
+                       gamma = 0.066
+)
+summary(classifier_svm_t)
+
+# Use the tuned model to predict Converted
+pred_Converted_svm_t = predict(classifier_svm_t, type = 'response', newdata=test[-4])
+
+
+# Step 8
+# Calculate Accuracy, AUC and Confusion Matrix
+confusionMatrix(pred_Converted_svm_t, test[, 4])
+
+# ROC and AUC
+pr_svm_t = ROCR::prediction(as.numeric(pred_Converted_svm_t), test_set$Converted)
+perf_svm_t = ROCR::performance(pr_svm_t,measure = 'tpr',x.measure = 'fpr')
+ROCR::plot(perf_svm_t, colorize =  TRUE, main = "ROC Curve SVM Tuned")
+abline(a = 0, b =1)
+auc_svm_t = auc(test_set[, 3], pred_Converted_svm_t)
+auc_svm_t
+# Irace 180 AUC = 0.8377562
+
+pred_Converted = predict(classifier, type = 'response', newdata = test[-4])
+
+# install.packages('e1071')
+library(caret)
+
+confusionMatrix((pred_Converted), test)
+
+
+library(ROCR)
+library(Metrics)
+
+pr = prediction(as.numeric(pred_), test_set$e_signed)
+perf = performance(pr,measure = 'tpr',x.measure = 'fpr')
+plot(perf)
+
+auc(test_set[, 16], pred_esigned)
+
+
+
